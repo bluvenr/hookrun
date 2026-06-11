@@ -1,12 +1,17 @@
 # Example: Auto-deploy on GitHub push to main branch
 name: "github-auto-deploy"
 
-# Authentication (optional, AND relationship if both set)
+# Authentication (optional, AND relationship if multiple set)
 auth:
   token:
     source: "header"             # "header" or "query"
     key: "X-Webhook-Token"
     value: "your-secret-token"
+  # HMAC signature verification (GitHub, GitLab, etc.)
+  # hmac:
+  #   header: "X-Hub-Signature-256"   # signature header name
+  #   secret: "your-webhook-secret"   # HMAC secret key (from GitHub webhook settings)
+  #   algorithm: "sha256"              # "sha256" (default) | "sha1" | "sha512"
   # ip_whitelist:
   #   - "192.30.252.0/22"       # GitHub webhook IPs (example)
 

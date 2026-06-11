@@ -286,10 +286,9 @@ When `first_match_only: false`, the response is an array:
 ```yaml
 name: "github-deploy"
 auth:
-  token:
-    source: "header"
-    key: "X-Hub-Signature-256"
-    value: "sha256=your-secret"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-github-webhook-secret"
 execution:
   policy: "block"
 rules:

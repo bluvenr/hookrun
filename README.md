@@ -50,7 +50,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 
 - **YAML Driven** — All rules defined in YAML files, zero coding required
 - **Targeted Routing** — `/webhook/{filename}` directly routes to specific config for efficient matching
-- **Flexible Auth** — Token (Header/Query) + IP whitelist with AND relationship
+- **Flexible Auth** — Token (Header/Query) + HMAC Signature (GitHub/GitLab) + IP whitelist with AND relationship
 - **Multi-Condition Filters** — Match against Header / Query / Body with operators: `eq` `ne` `contains` `regex`
 - **Execution Policies** — Three modes: `block` (prevent concurrency), `always` (always execute), `cooldown` (rate limiting)
 - **Policy Inheritance** — File-level → Rule-level override
@@ -181,7 +181,7 @@ hookrun start -f
 
 ### Authentication
 
-Token and IP whitelist use **AND** relationship — all configured checks must pass:
+Token, HMAC signature, and IP whitelist use **AND** relationship — all configured checks must pass:
 
 ```yaml
 auth:
@@ -189,6 +189,10 @@ auth:
     source: "header"           # "header" or "query"
     key: "X-Webhook-Token"
     value: "secret123"
+  hmac:
+    header: "X-Hub-Signature-256"   # GitHub signature header
+    secret: "your-webhook-secret"   # HMAC secret from GitHub webhook settings
+    algorithm: "sha256"              # "sha256" (default) | "sha1" | "sha512"
   ip_whitelist:
     - "192.168.1.100"
     - "10.0.0.0/24"            # CIDR supported

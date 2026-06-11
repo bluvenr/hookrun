@@ -1,8 +1,15 @@
 package engine
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
+	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -27,11 +34,12 @@ type Response struct {
 
 // RequestData holds parsed request information.
 type RequestData struct {
-	Headers map[string]string
-	Query   map[string]string
-	Body    map[string]interface{}
-	BodyRaw string
-	IP      string
+	Headers   map[string]string
+	Query     map[string]string
+	Body      map[string]interface{}
+	BodyRaw   string
+	BodyBytes []byte // raw body bytes for HMAC signature verification
+	IP        string
 }
 
 // Engine is the core webhook processing engine.
@@ -214,11 +222,18 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 	return nil // no matching rule in this config
 }
 
-// checkAuth validates authentication (AND relationship between token and IP whitelist).
+// checkAuth validates authentication (AND relationship between token, HMAC, and IP whitelist).
 func (e *Engine) checkAuth(auth *config.AuthConfig, req *RequestData) bool {
 	// Check token if configured
 	if auth.Token != nil {
 		if !e.checkToken(auth.Token, req) {
+			return false
+		}
+	}
+
+	// Check HMAC signature if configured
+	if auth.HMAC != nil {
+		if !e.checkHMAC(auth.HMAC, req) {
 			return false
 		}
 	}
@@ -245,6 +260,56 @@ func (e *Engine) checkToken(token *config.TokenConfig, req *RequestData) bool {
 		return false
 	}
 	return actual == token.Value
+}
+
+// checkHMAC validates the HMAC signature from the request header.
+// Supports GitHub (X-Hub-Signature-256, sha256=hex), GitLab, and other formats.
+func (e *Engine) checkHMAC(cfg *config.HMACConfig, req *RequestData) bool {
+	// Get the signature header value (lowercase key)
+	sigHeader := req.Headers[strings.ToLower(cfg.Header)]
+	if sigHeader == "" {
+		e.logger.Warn("HMAC verification failed: header '%s' is missing or empty", cfg.Header)
+		return false
+	}
+
+	// Strip prefix from signature (e.g. "sha256=abc123" -> "abc123")
+	expectedHex := sigHeader
+	if cfg.Prefix != "" && strings.HasPrefix(sigHeader, cfg.Prefix) {
+		expectedHex = strings.TrimPrefix(sigHeader, cfg.Prefix)
+	}
+
+	// Decode the expected signature from hex
+	expected, err := hex.DecodeString(expectedHex)
+	if err != nil {
+		e.logger.Warn("HMAC verification failed: invalid hex in signature header")
+		return false
+	}
+
+	// Select hash function
+	var newHash func() hash.Hash
+	switch cfg.Algorithm {
+	case "sha1":
+		newHash = sha1.New
+	case "sha512":
+		newHash = sha512.New
+	case "sha256":
+		newHash = sha256.New
+	default:
+		newHash = sha256.New
+	}
+
+	// Compute HMAC over raw body bytes
+	mac := hmac.New(newHash, []byte(cfg.Secret))
+	mac.Write(req.BodyBytes)
+	actual := mac.Sum(nil)
+
+	// Constant-time comparison to prevent timing attacks
+	if !hmac.Equal(actual, expected) {
+		e.logger.Warn("HMAC verification failed: signature mismatch")
+		return false
+	}
+
+	return true
 }
 
 // checkIPWhitelist checks if the request IP is in the whitelist (supports CIDR).
@@ -522,12 +587,16 @@ func ParseRequest(r *http.Request) *RequestData {
 		data.IP = xri
 	}
 
-	// Parse body as JSON
+	// Read raw body bytes (needed for HMAC signature verification)
 	if r.Body != nil {
-		var body map[string]interface{}
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&body); err == nil {
-			data.Body = body
+		rawBody, err := io.ReadAll(r.Body)
+		if err == nil {
+			data.BodyBytes = rawBody
+			// Parse body as JSON from raw bytes
+			var body map[string]interface{}
+			if err := json.Unmarshal(rawBody, &body); err == nil {
+				data.Body = body
+			}
 		}
 	}
 

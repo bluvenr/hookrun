@@ -75,6 +75,10 @@ All configured checks use **AND** relationship — every check must pass.
 | `auth.token.source` | string | If token set | `"header"` or `"query"` — where to read the token |
 | `auth.token.key` | string | If token set | Header name or query parameter name |
 | `auth.token.value` | string | If token set | Expected token value |
+| `auth.hmac.header` | string | If hmac set | Signature header name, e.g. `X-Hub-Signature-256` |
+| `auth.hmac.secret` | string | If hmac set | HMAC secret key (from webhook provider settings) |
+| `auth.hmac.algorithm` | string | No | `"sha256"` (default) \| `"sha1"` \| `"sha512"` |
+| `auth.hmac.prefix` | string | No | Signature prefix, e.g. `"sha256="` (auto-derived from algorithm if empty) |
 | `auth.ip_whitelist` | array | No | List of allowed IPs (supports CIDR) |
 
 #### Example
@@ -85,12 +89,47 @@ auth:
     source: "header"
     key: "X-Webhook-Token"
     value: "secret123"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-webhook-secret"
+    algorithm: "sha256"
   ip_whitelist:
     - "192.168.1.100"
     - "10.0.0.0/24"
 ```
 
-If only `token` is set, only token validation is required. If only `ip_whitelist` is set, only IP validation is required. If both are set, both must pass.
+If only `token` is set, only token validation is required. If only `hmac` is set, only HMAC signature validation is required. If only `ip_whitelist` is set, only IP validation is required. If multiple are set, all must pass (AND relationship).
+
+#### HMAC Signature Verification
+
+HMAC verification computes a signature over the raw request body using the configured secret and algorithm, then compares it against the signature provided in the request header. This is the standard verification method used by GitHub, GitLab, Bitbucket, and other platforms.
+
+| Platform | Header | Algorithm | Prefix |
+|----------|--------|-----------|--------|
+| GitHub | `X-Hub-Signature-256` | `sha256` | `sha256=` |
+| GitLab | `X-Gitlab-Token` | — (plain token, use `auth.token` instead) | — |
+| Bitbucket | `X-Hub-Signature` | `sha256` | `sha256=` |
+
+GitHub example:
+
+```yaml
+auth:
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-github-webhook-secret"
+    # algorithm defaults to "sha256", prefix auto-derived as "sha256="
+```
+
+Custom prefix example (for platforms with non-standard formats):
+
+```yaml
+auth:
+  hmac:
+    header: "X-Signature"
+    secret: "my-secret"
+    algorithm: "sha512"
+    prefix: "sha512="
+```
 
 ---
 
@@ -247,10 +286,9 @@ actions:
 name: "github-auto-deploy"
 
 auth:
-  token:
-    source: "header"
-    key: "X-Hub-Signature-256"
-    value: "sha256=abc123"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-github-webhook-secret"
   ip_whitelist:
     - "192.30.252.0/22"
 

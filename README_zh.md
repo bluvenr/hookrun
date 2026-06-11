@@ -50,7 +50,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 
 - **YAML 驱动** — 所有规则通过 YAML 文件定义，无需编码
 - **定向路由** — 支持 `/webhook/{filename}` 精准定位配置，高效匹配
-- **灵活验证** — Token 验证（Header/Query）+ IP 白名单，AND 关系组合
+- **灵活验证** — Token 验证（Header/Query）+ HMAC 签名验证（GitHub/GitLab）+ IP 白名单，AND 关系组合
 - **多条件过滤** — 支持 Header / Query / Body 匹配，操作符：`eq` `ne` `contains` `regex`
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
 - **策略继承** — 文件级 → Rule 级逐层覆盖
@@ -177,7 +177,7 @@ hookrun start -f
 
 ### 请求验证（Auth）
 
-Token 和 IP 白名单为 **AND** 关系，设置了的都必须通过：
+Token、HMAC 签名和 IP 白名单为 **AND** 关系，设置了的都必须通过：
 
 ```yaml
 auth:
@@ -185,6 +185,10 @@ auth:
     source: "header"           # "header" 或 "query"
     key: "X-Webhook-Token"
     value: "secret123"
+  hmac:
+    header: "X-Hub-Signature-256"   # GitHub 签名 Header
+    secret: "your-webhook-secret"   # HMAC 密钥（来自 GitHub Webhook 设置）
+    algorithm: "sha256"              # "sha256"（默认）| "sha1" | "sha512"
   ip_whitelist:
     - "192.168.1.100"
     - "10.0.0.0/24"            # 支持 CIDR

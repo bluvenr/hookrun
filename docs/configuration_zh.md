@@ -75,6 +75,10 @@ config_dir: "./hooks"
 | `auth.token.source` | string | 设置 token 时必填 | `"header"` 或 `"query"` — token 来源 |
 | `auth.token.key` | string | 设置 token 时必填 | Header 名称或 Query 参数名 |
 | `auth.token.value` | string | 设置 token 时必填 | 期望的 token 值 |
+| `auth.hmac.header` | string | 设置 hmac 时必填 | 签名 Header 名称，如 `X-Hub-Signature-256` |
+| `auth.hmac.secret` | string | 设置 hmac 时必填 | HMAC 密钥（来自 Webhook 提供商设置） |
+| `auth.hmac.algorithm` | string | 否 | `"sha256"`（默认）\| `"sha1"` \| `"sha512"` |
+| `auth.hmac.prefix` | string | 否 | 签名前缀，如 `"sha256="`（为空时根据 algorithm 自动推导） |
 | `auth.ip_whitelist` | array | 否 | 允许的 IP 列表（支持 CIDR） |
 
 #### 示例
@@ -85,12 +89,47 @@ auth:
     source: "header"
     key: "X-Webhook-Token"
     value: "secret123"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-webhook-secret"
+    algorithm: "sha256"
   ip_whitelist:
     - "192.168.1.100"
     - "10.0.0.0/24"
 ```
 
-如果仅设置了 `token`，只需 token 验证。如果仅设置了 `ip_whitelist`，只需 IP 验证。如果两者都设置了，两者都必须通过。
+如果仅设置了 `token`，只需 token 验证。如果仅设置了 `hmac`，只需 HMAC 签名验证。如果仅设置了 `ip_whitelist`，只需 IP 验证。如果设置了多个，所有已设置项都必须通过（AND 关系）。
+
+#### HMAC 签名验证
+
+HMAC 验证使用配置的密钥和算法对原始请求体计算签名，然后与请求 Header 中的签名进行比对。这是 GitHub、GitLab、Bitbucket 等平台的标准验证方式。
+
+| 平台 | Header | 算法 | 前缀 |
+|------|--------|------|------|
+| GitHub | `X-Hub-Signature-256` | `sha256` | `sha256=` |
+| GitLab | `X-Gitlab-Token` | —（明文 Token，请使用 `auth.token`） | — |
+| Bitbucket | `X-Hub-Signature` | `sha256` | `sha256=` |
+
+GitHub 配置示例：
+
+```yaml
+auth:
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-github-webhook-secret"
+    # algorithm 默认为 "sha256"，prefix 自动推导为 "sha256="
+```
+
+自定义前缀示例（适配非标准格式的平台）：
+
+```yaml
+auth:
+  hmac:
+    header: "X-Signature"
+    secret: "my-secret"
+    algorithm: "sha512"
+    prefix: "sha512="
+```
 
 ---
 
@@ -247,10 +286,9 @@ actions:
 name: "github-auto-deploy"
 
 auth:
-  token:
-    source: "header"
-    key: "X-Hub-Signature-256"
-    value: "sha256=abc123"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-github-webhook-secret"
   ip_whitelist:
     - "192.30.252.0/22"
 

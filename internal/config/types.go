@@ -36,6 +36,7 @@ type RuleConfig struct {
 // AuthConfig holds authentication settings (AND relationship).
 type AuthConfig struct {
 	Token       *TokenConfig `yaml:"token,omitempty"`
+	HMAC        *HMACConfig  `yaml:"hmac,omitempty"`
 	IPWhitelist []string     `yaml:"ip_whitelist,omitempty"`
 }
 
@@ -44,6 +45,15 @@ type TokenConfig struct {
 	Source string `yaml:"source"` // "header" or "query"
 	Key    string `yaml:"key"`
 	Value  string `yaml:"value"`
+}
+
+// HMACConfig holds HMAC signature verification settings.
+// Supports GitHub (X-Hub-Signature-256, sha256), GitLab, and other platforms.
+type HMACConfig struct {
+	Header    string `yaml:"header"`    // signature header name, e.g. "X-Hub-Signature-256"
+	Secret    string `yaml:"secret"`    // HMAC secret key
+	Algorithm string `yaml:"algorithm"` // "sha256" (default) | "sha1" | "sha512"
+	Prefix    string `yaml:"prefix"`    // signature prefix, e.g. "sha256=" (auto-derived from algorithm if empty)
 }
 
 // ExecutionConfig holds execution policy settings.
@@ -184,6 +194,25 @@ func (a *AuthConfig) Validate(configName string) error {
 		}
 		if a.Token.Value == "" {
 			return fmt.Errorf("config '%s': auth.token.value is required", configName)
+		}
+	}
+	if a.HMAC != nil {
+		if a.HMAC.Header == "" {
+			return fmt.Errorf("config '%s': auth.hmac.header is required", configName)
+		}
+		if a.HMAC.Secret == "" {
+			return fmt.Errorf("config '%s': auth.hmac.secret is required", configName)
+		}
+		validAlgos := map[string]bool{"sha256": true, "sha1": true, "sha512": true, "": true}
+		if !validAlgos[a.HMAC.Algorithm] {
+			return fmt.Errorf("config '%s': auth.hmac.algorithm must be 'sha256', 'sha1', or 'sha512', got '%s'", configName, a.HMAC.Algorithm)
+		}
+		// Apply defaults
+		if a.HMAC.Algorithm == "" {
+			a.HMAC.Algorithm = "sha256"
+		}
+		if a.HMAC.Prefix == "" {
+			a.HMAC.Prefix = a.HMAC.Algorithm + "="
 		}
 	}
 	return nil
