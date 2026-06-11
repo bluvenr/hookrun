@@ -32,12 +32,7 @@ func ExecuteCommand(cmd string, timeoutSec int, isolate bool) *ActionResult {
 
 // ExecuteScript runs an external script file with optional arguments.
 func ExecuteScript(path string, args []string, timeoutSec int, isolate bool) *ActionResult {
-	// Build command: script path + args
-	fullCmd := path
-	if len(args) > 0 {
-		fullCmd = path + " " + strings.Join(args, " ")
-	}
-	return runShell(fullCmd, args, timeoutSec, isolate)
+	return runShell(path, args, timeoutSec, isolate)
 }
 
 // runShell executes a command through the system shell.
@@ -55,14 +50,13 @@ func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool) *Ac
 	defer cancel()
 
 	// Build the command based on platform
+	shell, flag := shellCommand()
 	var c *exec.Cmd
 	if scriptArgs != nil && len(scriptArgs) > 0 {
-		// Script execution: use the script path directly with args
-		shell, flag := shellCommand()
-		fullCmd := cmd
-		c = exec.CommandContext(ctx, shell, flag, fullCmd)
+		// Script execution: pass args as separate arguments (safe for values with spaces)
+		shellCmd := cmd + " " + buildQuotedArgs(scriptArgs)
+		c = exec.CommandContext(ctx, shell, flag, shellCmd)
 	} else {
-		shell, flag := shellCommand()
 		c = exec.CommandContext(ctx, shell, flag, cmd)
 	}
 
@@ -105,4 +99,19 @@ func shellCommand() (string, string) {
 		return "cmd", "/c"
 	}
 	return "sh", "-c"
+}
+
+// buildQuotedArgs joins arguments with proper quoting for shell execution.
+func buildQuotedArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		if runtime.GOOS == "windows" {
+			// Windows cmd.exe uses double quotes
+			quoted[i] = `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
+		} else {
+			// Unix sh uses single quotes
+			quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
+		}
+	}
+	return strings.Join(quoted, " ")
 }

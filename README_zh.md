@@ -23,9 +23,8 @@ PASS: All configurations are valid
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
-  Rule files loaded: 2
-    - github-auto-deploy (2 rules: push-to-main, tag-release)
-    - gitlab-ci-trigger (1 rules: pipeline-complete)
+  Rule files loaded: 1
+    - github-auto-deploy (2 rules: push-to-main, tag-release) [auth: token]
 
 $ hookrun start
 HookRun started in background (PID: 8421)
@@ -55,6 +54,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
 - **策略继承** — 文件级 → Rule 级逐层覆盖
 - **匹配可控** — `first_match_only` 开关控制匹配即停或全量执行
+- **参数传递** — 模板变量（`{{.body.ref}}`）和 `pass_args` 将请求数据注入命令
 - **热重载** — 运行中 reload 配置，无需重启服务
 - **日志管理** — 按日切割、自动清理过期日志
 
@@ -242,6 +242,17 @@ actions:
     timeout: 60                # 超时秒数
     isolate: false             # 是否子进程隔离
     continue_on_error: false   # 失败后是否继续下一个
+  - type: "command"
+    # 模板变量：将请求数据直接嵌入命令
+    cmd: "git checkout {{.body.ref}}"
+  - type: "command"
+    # pass_args：提取请求数据并追加为尾部参数
+    cmd: "echo 'Deploying:'"
+    pass_args:
+      - source: "body"
+        key: "ref"
+      - source: "header"
+        key: "X-GitHub-Event"
   - type: "script"
     path: "./scripts/deploy.sh"
     args: ["production"]

@@ -235,9 +235,10 @@ rules:
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `type` | string | 是 | — | `"command"` 或 `"script"` |
-| `cmd` | string | command 时必填 | — | Shell 命令 |
-| `path` | string | script 时必填 | — | 脚本文件路径 |
-| `args` | array | 否 | `[]` | 脚本参数 |
+| `cmd` | string | command 时必填 | — | Shell 命令（支持模板变量） |
+| `path` | string | script 时必填 | — | 脚本文件路径（支持模板变量） |
+| `args` | array | 否 | `[]` | 脚本参数（支持模板变量） |
+| `pass_args` | array | 否 | `[]` | 从请求中提取参数并追加为命令参数 |
 | `timeout` | int | 否 | `0`（无限制） | 超时秒数 |
 | `isolate` | bool | 否 | `false` | 是否在隔离子进程中运行 |
 | `continue_on_error` | bool | 否 | `false` | 失败后是否继续执行下一个动作 |
@@ -259,6 +260,52 @@ rules:
 #### 环境变量
 
 所有执行的命令都会收到环境变量 `HOOKRUN=1`。
+
+#### 模板变量
+
+命令、脚本路径和脚本参数支持模板变量，在运行时从请求中解析实际值：
+
+| 模板 | 来源 | 示例 |
+|------|------|------|
+| `{{.body.<path>}}` | JSON 请求体 | `{{.body.ref}}`、`{{.body.repository.owner.name}}` |
+| `{{.header.<name>}}` | HTTP 请求头 | `{{.header.X-GitHub-Event}}` |
+| `{{.query.<name>}}` | URL 查询参数 | `{{.query.token}}` |
+
+body 路径支持点号和数组索引（与 filter body 类型相同）。
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "git checkout {{.body.ref}} && echo 'Event: {{.header.X-GitHub-Event}}'"
+```
+
+如果模板变量无法解析，将被替换为空字符串并记录警告日志。
+
+#### `pass_args` — 提取并追加参数
+
+`pass_args` 从请求中提取值并追加为命令或脚本的尾部参数。适合传递动态数据而无需在命令字符串中嵌入模板变量。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `source` | string | 是 | `"header"` \| `"query"` \| `"body"` |
+| `key` | string | 是 | 字段名或 body 的 JSON path |
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "echo 'Deploying:'"
+    pass_args:
+      - source: "body"
+        key: "ref"
+      - source: "header"
+        key: "X-GitHub-Event"
+```
+
+当 webhook 收到 `{"ref": "refs/heads/main"}` 且 header 为 `X-GitHub-Event: push` 时，实际执行的命令为：
+
+```
+echo 'Deploying:' refs/heads/main push
+```
 
 #### 示例
 
@@ -308,13 +355,14 @@ rules:
         value: "refs/heads/main"
     actions:
       - type: "command"
-        cmd: "cd /var/www/app && git pull origin main"
+        cmd: "cd /var/www/app && git pull origin {{.body.ref}}"
         timeout: 30
       - type: "command"
         cmd: "cd /var/www/app && npm install --production && npm run build"
         timeout: 120
       - type: "script"
         path: "./scripts/restart.sh"
+        args: ["{{.body.ref}}"]
         timeout: 60
 
   - name: "tag-release"
@@ -331,6 +379,9 @@ rules:
         value: "refs/tags/v.*"
     actions:
       - type: "command"
-        cmd: "echo 'Release tag detected'"
+        cmd: "echo 'Release tag:'"
+        pass_args:
+          - source: "body"
+            key: "ref"
         timeout: 10
 ```

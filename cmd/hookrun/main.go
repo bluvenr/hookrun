@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	Version    = "1.0.0"
+	Version    = "1.1.0"
 	BuildTime  = "unknown"
 	configPath string
 	foreground bool
@@ -395,7 +395,24 @@ func validateCmd() *cobra.Command {
 				for _, rule := range r.Rules {
 					ruleNames = append(ruleNames, rule.Name)
 				}
-				fmt.Printf("    - %s (%d rules: %s)\n", r.Name, len(r.Rules), strings.Join(ruleNames, ", "))
+				fmt.Printf("    - %s (%d rules: %s)", r.Name, len(r.Rules), strings.Join(ruleNames, ", "))
+				// Show auth types configured
+				if r.Auth != nil {
+					var authTypes []string
+					if r.Auth.Token != nil {
+						authTypes = append(authTypes, "token")
+					}
+					if r.Auth.HMAC != nil {
+						authTypes = append(authTypes, "hmac")
+					}
+					if len(r.Auth.IPWhitelist) > 0 {
+						authTypes = append(authTypes, "ip_whitelist")
+					}
+					if len(authTypes) > 0 {
+						fmt.Printf(" [auth: %s]", strings.Join(authTypes, "+"))
+					}
+				}
+				fmt.Println()
 			}
 
 			return nil

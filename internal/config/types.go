@@ -78,15 +78,22 @@ type Filter struct {
 	Value    string `yaml:"value"`
 }
 
+// PassArg defines a parameter to extract from the request and pass to the action.
+type PassArg struct {
+	Source string `yaml:"source"` // "header" | "query" | "body"
+	Key    string `yaml:"key"`    // field name or JSON path for body
+}
+
 // Action represents a command or script to execute.
 type Action struct {
-	Type            string   `yaml:"type"`              // "command" | "script"
-	Cmd             string   `yaml:"cmd,omitempty"`     // for type "command"
-	Path            string   `yaml:"path,omitempty"`    // for type "script"
-	Args            []string `yaml:"args,omitempty"`    // for type "script"
-	Timeout         int      `yaml:"timeout,omitempty"` // seconds, 0 = no limit
-	Isolate         bool     `yaml:"isolate,omitempty"`
-	ContinueOnError bool     `yaml:"continue_on_error,omitempty"`
+	Type            string    `yaml:"type"`                // "command" | "script"
+	Cmd             string    `yaml:"cmd,omitempty"`       // for type "command"
+	Path            string    `yaml:"path,omitempty"`      // for type "script"
+	Args            []string  `yaml:"args,omitempty"`      // for type "script"
+	PassArgs        []PassArg `yaml:"pass_args,omitempty"` // extract from request and append as arguments
+	Timeout         int       `yaml:"timeout,omitempty"`   // seconds, 0 = no limit
+	Isolate         bool      `yaml:"isolate,omitempty"`
+	ContinueOnError bool      `yaml:"continue_on_error,omitempty"`
 }
 
 // Defaults returns a GlobalConfig with default values applied.
@@ -287,6 +294,19 @@ func (f *Filter) Validate(ruleName string, index int) error {
 	return nil
 }
 
+// Validate checks a PassArg.
+func (p *PassArg) Validate(ruleName string, actionIndex, argIndex int) error {
+	prefix := fmt.Sprintf("rule '%s' action[%d] pass_args[%d]", ruleName, actionIndex, argIndex)
+	validSources := map[string]bool{"header": true, "query": true, "body": true}
+	if !validSources[p.Source] {
+		return fmt.Errorf("%s: source must be 'header', 'query', or 'body', got '%s'", prefix, p.Source)
+	}
+	if p.Key == "" {
+		return fmt.Errorf("%s: 'key' is required", prefix)
+	}
+	return nil
+}
+
 // Validate checks an Action.
 func (a *Action) Validate(ruleName string, index int) error {
 	prefix := fmt.Sprintf("rule '%s' action[%d]", ruleName, index)
@@ -298,6 +318,11 @@ func (a *Action) Validate(ruleName string, index int) error {
 	}
 	if a.Type == "script" && a.Path == "" {
 		return fmt.Errorf("%s: 'path' is required for script type", prefix)
+	}
+	for i, pa := range a.PassArgs {
+		if err := pa.Validate(ruleName, index, i); err != nil {
+			return err
+		}
 	}
 	return nil
 }

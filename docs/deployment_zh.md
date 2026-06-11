@@ -24,7 +24,7 @@ go build -o hookrun ./cmd/hookrun/
 使用 `-ldflags` 注入版本号和构建时间：
 
 ```bash
-go build -ldflags "-X main.Version=1.0.0 -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+go build -ldflags "-X main.Version=1.1.0 -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
   -o hookrun ./cmd/hookrun/
 ```
 
@@ -325,7 +325,7 @@ curl http://localhost:9000/health
 响应：
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.0.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
 ```
 
 ### 日志监控

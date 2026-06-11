@@ -112,9 +112,8 @@ PASS: All configurations are valid
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
-  Rule files loaded: 2
-    - github-auto-deploy (2 rules: push-to-main, tag-release)
-    - gitlab-ci-trigger (1 rules: pipeline-complete)
+  Rule files loaded: 1
+    - github-auto-deploy (2 rules: push-to-main, tag-release) [auth: token]
 ```
 
 建议在启动或重载前运行 `validate` 以提前发现配置错误。
@@ -130,7 +129,7 @@ hookrun version
 输出：
 
 ```
-HookRun v1.0.0
+HookRun v1.1.0
 Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64
@@ -184,7 +183,7 @@ GET /health
 返回：
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.0.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
 ```
 
 ---
@@ -304,7 +303,7 @@ rules:
         value: "refs/heads/main"
     actions:
       - type: "command"
-        cmd: "cd /var/www/app && git pull && npm run build"
+        cmd: "cd /var/www/app && git pull origin {{.body.ref}} && npm run build"
         timeout: 120
 ```
 

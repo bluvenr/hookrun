@@ -158,7 +158,7 @@ func (e *Engine) processConfigAll(cfg *config.RuleConfig, req *RequestData) []Re
 
 		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
 		e.markRunning(taskKey)
-		actionCount := e.executeActions(taskKey, rule.Actions)
+		actionCount := e.executeActions(taskKey, rule.Actions, req)
 		e.markDone(taskKey)
 
 		responses = append(responses, Response{
@@ -207,7 +207,7 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 		// Step 4: Execute actions
 		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
 		e.markRunning(taskKey)
-		actionCount := e.executeActions(taskKey, rule.Actions)
+		actionCount := e.executeActions(taskKey, rule.Actions, req)
 		e.markDone(taskKey)
 
 		return []Response{{
@@ -521,18 +521,26 @@ func (e *Engine) markDone(taskKey string) {
 
 // executeActions runs all actions for a rule sequentially.
 // Returns the number of successfully completed actions.
-func (e *Engine) executeActions(taskKey string, actions []config.Action) int {
+func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData) int {
 	completed := 0
 
 	for i, action := range actions {
+		// Resolve template variables and pass_args
+		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
+		resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
+		var resolvedArgs []string
+		for _, arg := range action.Args {
+			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
+		}
+
 		e.logger.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
 
 		var result *executor.ActionResult
 		switch action.Type {
 		case "command":
-			result = executor.ExecuteCommand(action.Cmd, action.Timeout, action.Isolate)
+			result = executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate)
 		case "script":
-			result = executor.ExecuteScript(action.Path, action.Args, action.Timeout, action.Isolate)
+			result = executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
 		default:
 			e.logger.Error("[%s] Unknown action type: %s", taskKey, action.Type)
 			continue
@@ -560,6 +568,87 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action) int {
 	}
 
 	return completed
+}
+
+// resolveActionTemplates resolves template variables in a string and appends pass_args.
+// Template syntax:
+//
+//	{{.body.<path>}}    - extract from JSON body (supports dot notation and array index)
+//	{{.header.<name>}}  - extract from request header
+//	{{.query.<name>}}   - extract from query parameter
+func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs []config.PassArg) string {
+	result := tmpl
+
+	// 1. Resolve {{.body.xxx}} templates
+	bodyRe := regexp.MustCompile(`\{\{\s*\.body\.([^}\s]+)\s*\}\}`)
+	result = bodyRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := bodyRe.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
+		}
+		val := e.extractBodyValue(req.Body, sub[1])
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	})
+
+	// 2. Resolve {{.header.xxx}} templates
+	headerRe := regexp.MustCompile(`\{\{\s*\.header\.([^}\s]+)\s*\}\}`)
+	result = headerRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := headerRe.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
+		}
+		key := strings.ToLower(sub[1])
+		val := req.Headers[key]
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	})
+
+	// 3. Resolve {{.query.xxx}} templates
+	queryRe := regexp.MustCompile(`\{\{\s*\.query\.([^}\s]+)\s*\}\}`)
+	result = queryRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := queryRe.FindStringSubmatch(match)
+		if len(sub) < 2 {
+			return match
+		}
+		val := req.Query[sub[1]]
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	})
+
+	// 4. Append pass_args as trailing arguments
+	if len(passArgs) > 0 {
+		for _, pa := range passArgs {
+			val := e.extractPassArgValue(&pa, req)
+			if result != "" {
+				result += " " + val
+			} else {
+				result = val
+			}
+		}
+	}
+
+	return result
+}
+
+// extractPassArgValue extracts a value from the request based on PassArg config.
+func (e *Engine) extractPassArgValue(pa *config.PassArg, req *RequestData) string {
+	switch pa.Source {
+	case "header":
+		return req.Headers[strings.ToLower(pa.Key)]
+	case "query":
+		return req.Query[pa.Key]
+	case "body":
+		return e.extractBodyValue(req.Body, pa.Key)
+	default:
+		return ""
+	}
 }
 
 // ParseRequest extracts RequestData from an HTTP request.

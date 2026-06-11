@@ -33,7 +33,8 @@ rules:
         value: "refs/heads/main"
     actions:
       - type: "command"
-        cmd: "echo 'Pulling latest code...'"
+        # Template variables: extract values from request and embed into command
+        cmd: "echo 'Deploying {{.body.ref}} (event: {{.header.X-GitHub-Event}})'"
         timeout: 30
       - type: "command"
         cmd: "echo 'Installing dependencies...'"
@@ -56,5 +57,11 @@ rules:
         value: "refs/tags/v.*"
     actions:
       - type: "command"
-        cmd: "echo 'New release tag detected!'"
+        # pass_args: extract values from request and append as trailing arguments
+        cmd: "echo 'New release tag:'"
+        pass_args:
+          - source: "body"
+            key: "ref"
+          - source: "header"
+            key: "X-GitHub-Event"
         timeout: 60

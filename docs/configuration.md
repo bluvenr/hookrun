@@ -235,9 +235,10 @@ Actions execute **sequentially** in the order defined.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `type` | string | Yes | — | `"command"` or `"script"` |
-| `cmd` | string | If command | — | Shell command to execute |
-| `path` | string | If script | — | Script file path |
-| `args` | array | No | `[]` | Arguments for script |
+| `cmd` | string | If command | — | Shell command to execute (supports template variables) |
+| `path` | string | If script | — | Script file path (supports template variables) |
+| `args` | array | No | `[]` | Arguments for script (supports template variables) |
+| `pass_args` | array | No | `[]` | Extract from request and append as arguments |
 | `timeout` | int | No | `0` (no limit) | Timeout in seconds |
 | `isolate` | bool | No | `false` | Run in isolated subprocess |
 | `continue_on_error` | bool | No | `false` | Continue to next action if this one fails |
@@ -259,6 +260,52 @@ Actions execute **sequentially** in the order defined.
 #### Environment Variable
 
 All executed commands receive `HOOKRUN=1` in their environment.
+
+#### Template Variables
+
+Commands, script paths, and script arguments support template variables that are resolved from the incoming request at runtime:
+
+| Template | Source | Example |
+|----------|--------|---------|
+| `{{.body.<path>}}` | JSON request body | `{{.body.ref}}`, `{{.body.repository.owner.name}}` |
+| `{{.header.<name>}}` | HTTP request header | `{{.header.X-GitHub-Event}}` |
+| `{{.query.<name>}}` | URL query parameter | `{{.query.token}}` |
+
+Body paths support dot notation and array indexing (same as filter body type).
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "git checkout {{.body.ref}} && echo 'Event: {{.header.X-GitHub-Event}}'"
+```
+
+If a template variable cannot be resolved, it is replaced with an empty string and a warning is logged.
+
+#### `pass_args` — Extract and Append Parameters
+
+`pass_args` extracts values from the request and appends them as trailing arguments to the command or script. This is useful for passing dynamic data without embedding template variables in the command string.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | string | Yes | `"header"` \| `"query"` \| `"body"` |
+| `key` | string | Yes | Field name or JSON path for body |
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "echo 'Deploying:'"
+    pass_args:
+      - source: "body"
+        key: "ref"
+      - source: "header"
+        key: "X-GitHub-Event"
+```
+
+When the webhook receives `{"ref": "refs/heads/main"}` with header `X-GitHub-Event: push`, the executed command becomes:
+
+```
+echo 'Deploying:' refs/heads/main push
+```
 
 #### Example
 
@@ -308,13 +355,14 @@ rules:
         value: "refs/heads/main"
     actions:
       - type: "command"
-        cmd: "cd /var/www/app && git pull origin main"
+        cmd: "cd /var/www/app && git pull origin {{.body.ref}}"
         timeout: 30
       - type: "command"
         cmd: "cd /var/www/app && npm install --production && npm run build"
         timeout: 120
       - type: "script"
         path: "./scripts/restart.sh"
+        args: ["{{.body.ref}}"]
         timeout: 60
 
   - name: "tag-release"
@@ -331,6 +379,9 @@ rules:
         value: "refs/tags/v.*"
     actions:
       - type: "command"
-        cmd: "echo 'Release tag detected'"
+        cmd: "echo 'Release tag:'"
+        pass_args:
+          - source: "body"
+            key: "ref"
         timeout: 10
 ```

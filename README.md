@@ -23,9 +23,8 @@ PASS: All configurations are valid
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
-  Rule files loaded: 2
-    - github-auto-deploy (2 rules: push-to-main, tag-release)
-    - gitlab-ci-trigger (1 rules: pipeline-complete)
+  Rule files loaded: 1
+    - github-auto-deploy (2 rules: push-to-main, tag-release) [auth: token]
 
 $ hookrun start
 HookRun started in background (PID: 8421)
@@ -55,6 +54,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Execution Policies** — Three modes: `block` (prevent concurrency), `always` (always execute), `cooldown` (rate limiting)
 - **Policy Inheritance** — File-level → Rule-level override
 - **Matching Control** — `first_match_only` toggle for first-match-stops vs execute-all
+- **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands
 - **Hot Reload** — Reload configs at runtime without restarting
 - **Log Management** — Daily rotation with automatic cleanup
 
@@ -246,6 +246,17 @@ actions:
     timeout: 60                # timeout in seconds
     isolate: false             # run in isolated subprocess
     continue_on_error: false   # continue to next action on failure
+  - type: "command"
+    # Template variables: embed request data directly into commands
+    cmd: "git checkout {{.body.ref}}"
+  - type: "command"
+    # pass_args: extract and append as trailing arguments
+    cmd: "echo 'Deploying:'"
+    pass_args:
+      - source: "body"
+        key: "ref"
+      - source: "header"
+        key: "X-GitHub-Event"
   - type: "script"
     path: "./scripts/deploy.sh"
     args: ["production"]
