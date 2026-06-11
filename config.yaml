@@ -1,0 +1,12 @@
+# HookRun Global Configuration
+server:
+  port: 9000
+  route: "/webhook"
+  # allow_all: true              # allow /webhook to iterate all configs (default: true)
+  # first_match_only: true       # stop at first matching rule (default: true, only for allow_all)
+
+log:
+  path: "./logs"
+  retention_days: 30
+
+config_dir: "./hooks"

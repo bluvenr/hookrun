@@ -1,0 +1,55 @@
+# Example: Auto-deploy on GitHub push to main branch
+name: "github-auto-deploy"
+
+# Authentication (optional, AND relationship if both set)
+auth:
+  token:
+    source: "header"             # "header" or "query"
+    key: "X-Webhook-Token"
+    value: "your-secret-token"
+  # ip_whitelist:
+  #   - "192.30.252.0/22"       # GitHub webhook IPs (example)
+
+# Execution policy (applies to all rules, can be overridden per-rule)
+execution:
+  policy: "block"                # "block" | "always" | "cooldown"
+  # cooldown_seconds: 300        # only for "cooldown" policy
+
+rules:
+  - name: "push-to-main"
+    filters:
+      - type: "header"
+        key: "X-GitHub-Event"
+        operator: "eq"
+        value: "push"
+      - type: "body"
+        key: "ref"
+        operator: "eq"
+        value: "refs/heads/main"
+    actions:
+      - type: "command"
+        cmd: "echo 'Pulling latest code...'"
+        timeout: 30
+      - type: "command"
+        cmd: "echo 'Installing dependencies...'"
+        timeout: 120
+      - type: "command"
+        cmd: "echo 'Build complete!'"
+        timeout: 30
+
+  - name: "tag-release"
+    execution:
+      policy: "always"           # override: allow concurrent tag releases
+    filters:
+      - type: "header"
+        key: "X-GitHub-Event"
+        operator: "eq"
+        value: "push"
+      - type: "body"
+        key: "ref"
+        operator: "regex"
+        value: "refs/tags/v.*"
+    actions:
+      - type: "command"
+        cmd: "echo 'New release tag detected!'"
+        timeout: 60

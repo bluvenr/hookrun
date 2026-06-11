@@ -1,0 +1,535 @@
+package engine
+
+import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/bluvenr/hookrun/internal/config"
+	"github.com/bluvenr/hookrun/internal/executor"
+	"github.com/bluvenr/hookrun/internal/logger"
+)
+
+// Response is the standard JSON response structure.
+type Response struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Config  string `json:"config,omitempty"`
+	Rule    string `json:"rule,omitempty"`
+	Actions int    `json:"actions,omitempty"`
+}
+
+// RequestData holds parsed request information.
+type RequestData struct {
+	Headers map[string]string
+	Query   map[string]string
+	Body    map[string]interface{}
+	BodyRaw string
+	IP      string
+}
+
+// Engine is the core webhook processing engine.
+type Engine struct {
+	mu      sync.RWMutex
+	configs []*config.RuleConfig
+	logger  *logger.Logger
+	// Execution state tracking
+	running map[string]bool      // configName/ruleName -> running
+	lastRun map[string]time.Time // configName/ruleName -> last start time
+}
+
+// New creates a new Engine instance.
+func New(configs []*config.RuleConfig, log *logger.Logger) *Engine {
+	return &Engine{
+		configs: configs,
+		logger:  log,
+		running: make(map[string]bool),
+		lastRun: make(map[string]time.Time),
+	}
+}
+
+// UpdateConfigs replaces the engine's rule configs (for hot reload).
+func (e *Engine) UpdateConfigs(configs []*config.RuleConfig) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.configs = configs
+}
+
+// Process handles an incoming webhook request by iterating all configs.
+// Stops at the first matching rule (first match wins).
+func (e *Engine) Process(req *RequestData) []Response {
+	e.mu.RLock()
+	configs := make([]*config.RuleConfig, len(e.configs))
+	copy(configs, e.configs)
+	e.mu.RUnlock()
+
+	for _, cfg := range configs {
+		resp := e.processConfig(cfg, req)
+		if len(resp) > 0 {
+			return resp // first match stops
+		}
+	}
+
+	return []Response{{
+		Code:    200,
+		Message: "No matching rules",
+	}}
+}
+
+// ProcessTargeted handles a webhook request for a specific config file (by filename).
+func (e *Engine) ProcessTargeted(cfg *config.RuleConfig, req *RequestData) []Response {
+	resp := e.processConfig(cfg, req)
+	if len(resp) > 0 {
+		return resp
+	}
+	return []Response{{
+		Code:    200,
+		Message: "No matching rules",
+		Config:  cfg.Name,
+	}}
+}
+
+// ProcessAll iterates all configs and executes ALL matching rules (not just first match).
+func (e *Engine) ProcessAll(req *RequestData) []Response {
+	e.mu.RLock()
+	configs := make([]*config.RuleConfig, len(e.configs))
+	copy(configs, e.configs)
+	e.mu.RUnlock()
+
+	var responses []Response
+	for _, cfg := range configs {
+		resp := e.processConfigAll(cfg, req)
+		responses = append(responses, resp...)
+	}
+
+	if len(responses) == 0 {
+		responses = append(responses, Response{
+			Code:    200,
+			Message: "No matching rules",
+		})
+	}
+	return responses
+}
+
+// processConfigAll processes a single config, executing ALL matching rules.
+func (e *Engine) processConfigAll(cfg *config.RuleConfig, req *RequestData) []Response {
+	// Auth check
+	if cfg.Auth != nil {
+		if !e.checkAuth(cfg.Auth, req) {
+			e.logger.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
+			return []Response{{
+				Code:    401,
+				Message: "Authentication failed",
+				Config:  cfg.Name,
+			}}
+		}
+	}
+
+	var responses []Response
+	for _, rule := range cfg.Rules {
+		if !e.matchFilters(rule.Filters, req) {
+			continue
+		}
+
+		taskKey := cfg.Name + "/" + rule.Name
+		policy := e.resolvePolicy(cfg.Execution, rule.Execution)
+
+		if blocked := e.checkPolicy(taskKey, policy); blocked != nil {
+			blocked.Config = cfg.Name
+			blocked.Rule = rule.Name
+			e.logger.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
+			responses = append(responses, *blocked)
+			continue
+		}
+
+		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
+		e.markRunning(taskKey)
+		actionCount := e.executeActions(taskKey, rule.Actions)
+		e.markDone(taskKey)
+
+		responses = append(responses, Response{
+			Code:    200,
+			Message: "ok",
+			Config:  cfg.Name,
+			Rule:    rule.Name,
+			Actions: actionCount,
+		})
+	}
+	return responses
+}
+
+// processConfig processes a single rule config file against the request.
+// Returns on first matching rule (first match wins).
+func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Response {
+	// Step 1: Auth check (AND relationship)
+	if cfg.Auth != nil {
+		if !e.checkAuth(cfg.Auth, req) {
+			e.logger.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
+			return []Response{{
+				Code:    401,
+				Message: "Authentication failed",
+				Config:  cfg.Name,
+			}}
+		}
+	}
+
+	for _, rule := range cfg.Rules {
+		// Step 2: Match filters (AND relationship)
+		if !e.matchFilters(rule.Filters, req) {
+			continue
+		}
+
+		// Step 3: Check execution policy
+		taskKey := cfg.Name + "/" + rule.Name
+		policy := e.resolvePolicy(cfg.Execution, rule.Execution)
+
+		if blocked := e.checkPolicy(taskKey, policy); blocked != nil {
+			blocked.Config = cfg.Name
+			blocked.Rule = rule.Name
+			e.logger.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
+			return []Response{*blocked}
+		}
+
+		// Step 4: Execute actions
+		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
+		e.markRunning(taskKey)
+		actionCount := e.executeActions(taskKey, rule.Actions)
+		e.markDone(taskKey)
+
+		return []Response{{
+			Code:    200,
+			Message: "ok",
+			Config:  cfg.Name,
+			Rule:    rule.Name,
+			Actions: actionCount,
+		}}
+	}
+
+	return nil // no matching rule in this config
+}
+
+// checkAuth validates authentication (AND relationship between token and IP whitelist).
+func (e *Engine) checkAuth(auth *config.AuthConfig, req *RequestData) bool {
+	// Check token if configured
+	if auth.Token != nil {
+		if !e.checkToken(auth.Token, req) {
+			return false
+		}
+	}
+
+	// Check IP whitelist if configured
+	if len(auth.IPWhitelist) > 0 {
+		if !e.checkIPWhitelist(auth.IPWhitelist, req.IP) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// checkToken validates the token from header or query.
+func (e *Engine) checkToken(token *config.TokenConfig, req *RequestData) bool {
+	var actual string
+	switch token.Source {
+	case "header":
+		actual = req.Headers[strings.ToLower(token.Key)]
+	case "query":
+		actual = req.Query[token.Key]
+	default:
+		return false
+	}
+	return actual == token.Value
+}
+
+// checkIPWhitelist checks if the request IP is in the whitelist (supports CIDR).
+func (e *Engine) checkIPWhitelist(whitelist []string, ip string) bool {
+	// Strip port from IP if present
+	host := ip
+	if h, _, err := net.SplitHostPort(ip); err == nil {
+		host = h
+	}
+
+	parsedIP := net.ParseIP(host)
+	if parsedIP == nil {
+		return false
+	}
+
+	for _, entry := range whitelist {
+		// Check CIDR
+		if strings.Contains(entry, "/") {
+			_, cidr, err := net.ParseCIDR(entry)
+			if err != nil {
+				continue
+			}
+			if cidr.Contains(parsedIP) {
+				return true
+			}
+		} else {
+			// Exact IP match
+			if host == entry {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// matchFilters checks if all filters match (AND relationship).
+func (e *Engine) matchFilters(filters []config.Filter, req *RequestData) bool {
+	for _, f := range filters {
+		if !e.matchFilter(f, req) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchFilter checks a single filter against the request.
+func (e *Engine) matchFilter(f config.Filter, req *RequestData) bool {
+	var actual string
+
+	switch f.Type {
+	case "header":
+		actual = req.Headers[strings.ToLower(f.Key)]
+	case "query":
+		actual = req.Query[f.Key]
+	case "body":
+		actual = e.extractBodyValue(req.Body, f.Key)
+	default:
+		return false
+	}
+
+	switch f.Operator {
+	case "eq":
+		return actual == f.Value
+	case "ne":
+		return actual != f.Value
+	case "contains":
+		return strings.Contains(actual, f.Value)
+	case "regex":
+		matched, err := regexp.MatchString(f.Value, actual)
+		return err == nil && matched
+	default:
+		return false
+	}
+}
+
+// extractBodyValue extracts a value from the JSON body using a simple path.
+// Supports dot notation: "commits[0].message", "ref", "repository.owner.name"
+func (e *Engine) extractBodyValue(body map[string]interface{}, path string) string {
+	if body == nil {
+		return ""
+	}
+
+	parts := parseJSONPath(path)
+	var current interface{} = body
+
+	for _, part := range parts {
+		switch v := current.(type) {
+		case map[string]interface{}:
+			val, ok := v[part.key]
+			if !ok {
+				return ""
+			}
+			current = val
+		default:
+			return ""
+		}
+		// Handle array index
+		if part.index >= 0 {
+			if arr, ok := current.([]interface{}); ok && part.index < len(arr) {
+				current = arr[part.index]
+			} else {
+				return ""
+			}
+		}
+	}
+
+	// Convert to string
+	switch v := current.(type) {
+	case string:
+		return v
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(v)
+	case nil:
+		return ""
+	default:
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+}
+
+// pathPart represents a segment of a JSON path.
+type pathPart struct {
+	key   string
+	index int // -1 means no array index
+}
+
+// parseJSONPath parses a JSON path like "commits[0].message" into parts.
+func parseJSONPath(path string) []pathPart {
+	var parts []pathPart
+	segments := strings.Split(path, ".")
+
+	arrayRe := regexp.MustCompile(`^(\w+)\[(\d+)\]$`)
+
+	for _, seg := range segments {
+		if matches := arrayRe.FindStringSubmatch(seg); matches != nil {
+			idx, _ := strconv.Atoi(matches[2])
+			parts = append(parts, pathPart{key: matches[1], index: idx})
+		} else {
+			parts = append(parts, pathPart{key: seg, index: -1})
+		}
+	}
+
+	return parts
+}
+
+// resolvePolicy determines the effective execution policy for a rule.
+// Priority: rule-level > file-level > default (block)
+func (e *Engine) resolvePolicy(fileLevel, ruleLevel *config.ExecutionConfig) config.ExecutionConfig {
+	if ruleLevel != nil {
+		return *ruleLevel
+	}
+	if fileLevel != nil {
+		return *fileLevel
+	}
+	return config.ExecutionConfig{Policy: "block"}
+}
+
+// checkPolicy checks if execution is allowed under the given policy.
+// Returns nil if allowed, or a Response if blocked.
+func (e *Engine) checkPolicy(taskKey string, policy config.ExecutionConfig) *Response {
+	e.mu.RLock()
+	running := e.running[taskKey]
+	lastRun := e.lastRun[taskKey]
+	e.mu.RUnlock()
+
+	switch policy.Policy {
+	case "always":
+		return nil
+	case "block":
+		if running {
+			return &Response{
+				Code:    409,
+				Message: fmt.Sprintf("Task '%s' is running, please try again later", taskKey),
+			}
+		}
+	case "cooldown":
+		if running {
+			elapsed := time.Since(lastRun)
+			remaining := time.Duration(policy.CooldownSeconds)*time.Second - elapsed
+			if remaining > 0 {
+				return &Response{
+					Code:    429,
+					Message: fmt.Sprintf("Task '%s' is in cooldown, retry in %d seconds", taskKey, int(remaining.Seconds())+1),
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// markRunning marks a task as running.
+func (e *Engine) markRunning(taskKey string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.running[taskKey] = true
+	e.lastRun[taskKey] = time.Now()
+}
+
+// markDone marks a task as no longer running.
+func (e *Engine) markDone(taskKey string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.running[taskKey] = false
+}
+
+// executeActions runs all actions for a rule sequentially.
+// Returns the number of successfully completed actions.
+func (e *Engine) executeActions(taskKey string, actions []config.Action) int {
+	completed := 0
+
+	for i, action := range actions {
+		e.logger.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
+
+		var result *executor.ActionResult
+		switch action.Type {
+		case "command":
+			result = executor.ExecuteCommand(action.Cmd, action.Timeout, action.Isolate)
+		case "script":
+			result = executor.ExecuteScript(action.Path, action.Args, action.Timeout, action.Isolate)
+		default:
+			e.logger.Error("[%s] Unknown action type: %s", taskKey, action.Type)
+			continue
+		}
+
+		// Log result
+		if result.Success() {
+			e.logger.Info("[%s] Action %d/%d completed in %v", taskKey, i+1, len(actions), result.Duration)
+			completed++
+		} else {
+			e.logger.Error("[%s] Action %d/%d failed (code=%d, duration=%v): %v",
+				taskKey, i+1, len(actions), result.ExitCode, result.Duration, result.Error)
+			if result.Stderr != "" {
+				e.logger.Error("[%s] stderr: %s", taskKey, result.Stderr)
+			}
+			if !action.ContinueOnError {
+				e.logger.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
+				break
+			}
+		}
+
+		if result.Stdout != "" {
+			e.logger.Debug("[%s] stdout: %s", taskKey, result.Stdout)
+		}
+	}
+
+	return completed
+}
+
+// ParseRequest extracts RequestData from an HTTP request.
+func ParseRequest(r *http.Request) *RequestData {
+	data := &RequestData{
+		Headers: make(map[string]string),
+		Query:   make(map[string]string),
+	}
+
+	// Extract headers (lowercase keys)
+	for key := range r.Header {
+		data.Headers[strings.ToLower(key)] = r.Header.Get(key)
+	}
+
+	// Extract query parameters
+	for key := range r.URL.Query() {
+		data.Query[key] = r.URL.Query().Get(key)
+	}
+
+	// Extract client IP (supports proxy headers)
+	data.IP = r.RemoteAddr
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		data.IP = strings.Split(xff, ",")[0]
+	} else if xri := r.Header.Get("X-Real-Ip"); xri != "" {
+		data.IP = xri
+	}
+
+	// Parse body as JSON
+	if r.Body != nil {
+		var body map[string]interface{}
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&body); err == nil {
+			data.Body = body
+		}
+	}
+
+	return data
+}
