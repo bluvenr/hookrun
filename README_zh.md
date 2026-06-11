@@ -1,10 +1,50 @@
 # HookRun
 
+[![Go Version](https://img.shields.io/github/go-mod/go-version/bluvenr/hookrun)](https://go.dev/)
+[![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bluvenr/hookrun)](https://goreportcard.com/report/github.com/bluvenr/hookrun)
+
 [English](README.md)
 
 轻量级 Webhook 动作执行引擎 —— 基于 YAML 配置，接收 Webhook 请求后自动执行自定义命令/脚本。
 
 单二进制文件，跨平台支持（Linux / Windows / macOS）。
+
+## 运行演示
+
+```
+$ hookrun validate
+Validating config: config.yaml
+PASS: All configurations are valid
+  Server port: 9000
+  Webhook route: /webhook
+  Allow all: true
+  First match only: true
+  Log path: ./logs
+  Log retention: 30 days
+  Config dir: ./hooks
+  Rule files loaded: 2
+    - github-auto-deploy (2 rules: push-to-main, tag-release)
+    - gitlab-ci-trigger (1 rules: pipeline-complete)
+
+$ hookrun start
+HookRun started in background (PID: 8421)
+
+$ hookrun status
+Status:  running
+PID:     8421
+Port:    9000
+Rules:   2 config(s)
+Uptime:  12m30s
+
+# 收到 webhook 推送
+$ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
+    -H "X-Webhook-Token: your-secret-token" \
+    -H "X-GitHub-Event: push" \
+    -d '{"ref":"refs/heads/main"}'
+
+→ {"code":200,"message":"ok","config":"github-auto-deploy","rule":"push-to-main","actions":3}
+```
 
 ## 特性
 
