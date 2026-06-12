@@ -144,6 +144,13 @@
     .learn-more a { font-size: 14px; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; transition: opacity .15s; }
     .learn-more a:hover { opacity: .7; }
 
+    /* CTA section */
+    .cta-block { text-align: center; padding: 64px 20px; }
+    .cta-block .section-title { margin-bottom: 12px; }
+    .cta-block .section-desc { margin: 0 auto 36px; }
+    .cta-btn { display: inline-block; padding: 14px 36px; background: var(--accent); color: #fff; border-radius: 8px; font-size: 15px; font-weight: 600; transition: opacity .15s; }
+    .cta-btn:hover { opacity: .85; }
+
     /* Why cards */
     .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .why-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 28px 24px; transition: border-color .2s; }
@@ -343,7 +350,6 @@
         <div class="feature-desc" data-i18n="f8_desc">Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.</div>
       </div>
     </div>
-    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="feat_more" data-i18n-doc="docs/configuration">Full configuration reference &rarr;</a></div>
   </div>
 </section>
 
@@ -416,7 +422,6 @@
         <div class="why-desc" data-i18n="why3_desc">Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.</div>
       </div>
     </div>
-    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener" data-i18n="why_more">View project on GitHub &rarr;</a></div>
   </div>
 </section>
 
@@ -450,12 +455,11 @@
         <div class="flow-desc" data-i18n="how4_desc">Commands and scripts run with request data injected</div>
       </div>
     </div>
-    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="how_more" data-i18n-doc="docs/configuration">Detailed configuration guide &rarr;</a></div>
   </div>
 </section>
 
 <!-- Quick Start -->
-<section class="section" id="quickstart">
+<section class="section section-alt" id="quickstart">
   <div class="container">
     <h2 class="section-title" data-i18n="qs_title">Quick Start</h2>
     <p class="section-desc" data-i18n="qs_desc">From source to running webhook server in three steps.</p>
@@ -480,12 +484,11 @@ hookrun validate</div>
 hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span></div>
       </div>
     </div>
-    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/deployment.md" target="_blank" rel="noopener" data-i18n="qs_more" data-i18n-doc="docs/deployment">Deployment: systemd, Docker, reverse proxy &rarr;</a></div>
   </div>
 </section>
 
 <!-- Audience -->
-<section class="section section-alt" id="audience">
+<section class="section" id="audience">
   <div class="container">
     <h2 class="section-title" data-i18n="aud_title">Built For</h2>
     <p class="section-desc" data-i18n="aud_desc">HookRun is the right tool if you need a simple, reliable bridge between webhooks and server actions.</p>
@@ -515,6 +518,15 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
         <div class="audience-desc" data-i18n="aud6_desc">Self-hosted, open source, no SaaS dependency. Full control over your automation stack.</div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section section-alt">
+  <div class="container cta-block">
+    <h2 class="section-title" data-i18n="cta_title">Ready to Dive Deeper?</h2>
+    <p class="section-desc" data-i18n="cta_desc">Explore configuration parameters, CLI commands, deployment strategies, and more.</p>
+    <a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" class="cta-btn" data-i18n="cta_btn" data-i18n-doc="docs/configuration">Browse Documentation</a>
   </div>
 </section>
 
@@ -586,6 +598,8 @@ const T = {
     aud4_role: "Indie Developers", aud4_desc: "Lightweight automation for personal servers. No Docker, no Kubernetes, just one binary.",
     aud5_role: "Sys Admins", aud5_desc: "Turn incoming HTTP events into shell commands. YAML config, no scripting language required.",
     aud6_role: "Small Teams", aud6_desc: "Self-hosted, open source, no SaaS dependency. Full control over your automation stack.",
+    cta_title: "Ready to Dive Deeper?", cta_desc: "Explore configuration parameters, CLI commands, deployment strategies, and more.",
+    cta_btn: "Browse Documentation",
     footer_docs: "Config", footer_usage: "Usage", footer_deploy: "Deployment"
   },
   zh: {
@@ -638,6 +652,8 @@ const T = {
     aud4_role: "独立开发者", aud4_desc: "个人服务器的轻量自动化。不用 Docker，不用 Kubernetes，一个二进制搞定。",
     aud5_role: "系统管理员", aud5_desc: "将 HTTP 事件转化为 Shell 命令。YAML 配置，无需掌握脚本语言。",
     aud6_role: "小型团队", aud6_desc: "自托管、开源、不依赖 SaaS。完全掌控你的自动化栈。",
+    cta_title: "想深入了解？", cta_desc: "探索配置参数、CLI 命令、部署策略等更多内容。",
+    cta_btn: "浏览文档",
     footer_docs: "配置", footer_usage: "使用", footer_deploy: "部署"
   }
 };
