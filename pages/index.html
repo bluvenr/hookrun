@@ -3,8 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HookRun — Lightweight Webhook Action Engine</title>
-  <meta name="description" content="Execute custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform.">
+  <title>HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation</title>
+  <meta name="description" content="HookRun is a lightweight webhook action engine that executes custom commands and scripts based on YAML rules. Single binary, cross-platform (Linux, macOS, Windows), open source under MIT.">
+  <meta name="keywords" content="webhook, webhook automation, YAML, git auto deploy, CI/CD, webhook action engine, Go, single binary, open source, self-hosted">
+  <meta name="author" content="bluvenr">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://bluvenr.github.io/hookrun/">
+  <meta name="theme-color" content="#09090b">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://bluvenr.github.io/hookrun/">
+  <meta property="og:title" content="HookRun - Lightweight Webhook Action Engine">
+  <meta property="og:description" content="Execute custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source under MIT.">
+  <meta property="og:site_name" content="HookRun">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="HookRun - Lightweight Webhook Action Engine">
+  <meta name="twitter:description" content="Execute custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.">
+
+  <!-- Hreflang -->
+  <link rel="alternate" hreflang="en" href="https://bluvenr.github.io/hookrun/">
+  <link rel="alternate" hreflang="zh" href="https://bluvenr.github.io/hookrun/">
+  <link rel="alternate" hreflang="x-default" href="https://bluvenr.github.io/hookrun/">
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "HookRun",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "description": "A lightweight webhook action engine that executes custom commands and scripts based on YAML rules when webhook requests arrive.",
+    "license": "https://opensource.org/licenses/MIT",
+    "codeRepository": "https://github.com/bluvenr/hookrun",
+    "downloadUrl": "https://github.com/bluvenr/hookrun/releases",
+    "author": { "@type": "Person", "name": "bluvenr" },
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚡</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,141 +55,182 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-base: #0a0a0a; --bg-raised: #111111; --bg-surface: #18181b; --bg-card: #1c1c1e;
+      --bg: #09090b; --bg-raised: #111113; --bg-surface: #18181b; --bg-card: #1c1c1e;
       --border: #27272a; --border-hi: #3f3f46;
       --text-1: #fafafa; --text-2: #a1a1aa; --text-3: #71717a;
       --accent: #34d399; --accent-dim: #059669; --accent-bg: rgba(52,211,153,.08);
+      --accent-border: rgba(52,211,153,.2);
       --sans: 'Geist', system-ui, -apple-system, sans-serif;
       --mono: 'Geist Mono', 'Cascadia Code', 'Fira Code', monospace;
-      --max-w: 1120px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+      --max-w: 1120px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 100px;
     }
 
     html { scroll-behavior: smooth; }
-    body { font-family: var(--sans); background: var(--bg-base); color: var(--text-2); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text-2); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
     a { color: var(--accent); text-decoration: none; transition: opacity .15s; }
     a:hover { opacity: .8; }
     ::selection { background: rgba(52,211,153,.2); color: var(--text-1); }
     .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
 
-    /* ── Nav ── */
-    nav { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); background: rgba(10,10,10,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    /* Nav */
+    nav { position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); background: rgba(9,9,11,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     .nav-inner { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .logo { font-size: 18px; font-weight: 700; color: var(--text-1); letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; }
-    .logo-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 14px; font-weight: 600; }
+    .logo-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--accent-bg); color: var(--accent); font-size: 14px; font-weight: 600; }
     .nav-right { display: flex; align-items: center; gap: 28px; }
     .nav-links { display: flex; gap: 28px; }
     .nav-links a { font-size: 14px; color: var(--text-3); font-weight: 400; transition: color .15s; }
     .nav-links a:hover { color: var(--text-1); opacity: 1; }
-
-    /* ── Lang Toggle ── */
-    .lang-btn {
-      display: inline-flex; align-items: center;
-      border: 1px solid var(--border-hi); border-radius: 20px;
-      overflow: hidden; height: 30px; flex-shrink: 0;
-    }
-    .lang-btn button {
-      padding: 0 12px; height: 100%; border: none; background: transparent;
-      color: var(--text-3); font-family: var(--mono); font-size: 12px;
-      cursor: pointer; transition: all .15s;
-    }
+    .lang-btn { display: inline-flex; border: 1px solid var(--border-hi); border-radius: var(--r-pill); overflow: hidden; height: 30px; }
+    .lang-btn button { padding: 0 12px; height: 100%; border: none; background: transparent; color: var(--text-3); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: all .15s; }
     .lang-btn button:hover { color: var(--text-1); }
     .lang-btn button.active { background: var(--accent-bg); color: var(--accent); }
 
-    /* ── Hero ── */
-    .hero { padding: 100px 0 80px; background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,211,153,.07), transparent); }
-    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
-    .hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .06em; margin-bottom: 20px; }
-    .hero-eyebrow::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-    .hero h1 { font-size: clamp(36px, 5vw, 52px); font-weight: 700; color: var(--text-1); line-height: 1.08; letter-spacing: -.035em; margin-bottom: 20px; }
-    .hero p { font-size: 17px; color: var(--text-2); line-height: 1.65; max-width: 440px; margin-bottom: 32px; }
-    .hero-ctas { display: flex; gap: 12px; }
+    /* Hero */
+    .hero { padding: 80px 0 64px; background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,211,153,.06), transparent); }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .hero h1 { font-size: clamp(34px, 5vw, 50px); font-weight: 700; color: var(--text-1); line-height: 1.08; letter-spacing: -.035em; margin-bottom: 18px; }
+    .hero p { font-size: 17px; color: var(--text-2); line-height: 1.65; max-width: 440px; margin-bottom: 28px; }
+    .hero-ctas { display: flex; gap: 12px; margin-bottom: 28px; }
 
-    /* ── Buttons ── */
-    .btn { display: inline-flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: var(--r-sm); border: 1px solid transparent; cursor: pointer; transition: background .15s, border-color .15s; text-decoration: none; }
-    .btn-primary { background: var(--accent); color: #0a0a0a; font-weight: 600; }
+    /* Badges */
+    .badge-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--r-pill); background: rgba(255,255,255,.04); border: 1px solid var(--border); font-size: 12px; color: var(--text-3); transition: border-color .2s, color .2s; white-space: nowrap; }
+    .badge:hover { border-color: var(--border-hi); color: var(--text-2); }
+    .badge svg { flex-shrink: 0; }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+    .badge-accent { border-color: var(--accent-border); }
+    .badge-accent .badge-dot { box-shadow: 0 0 6px var(--accent); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 14px; font-weight: 500; padding: 10px 20px; border-radius: var(--r-sm); border: 1px solid transparent; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; text-decoration: none; }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: #09090b; font-weight: 600; }
     .btn-primary:hover { background: #6ee7b7; opacity: 1; }
     .btn-ghost { background: transparent; color: var(--text-2); border-color: var(--border-hi); }
     .btn-ghost:hover { color: var(--text-1); border-color: var(--text-3); opacity: 1; }
 
-    /* ── Terminal ── */
+    /* Terminal */
     .terminal { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03); }
     .terminal-bar { display: flex; align-items: center; gap: 7px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
-    .terminal-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border-hi); }
+    .terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
     .terminal-dot:nth-child(1) { background: #f87171; }
     .terminal-dot:nth-child(2) { background: #fbbf24; }
     .terminal-dot:nth-child(3) { background: #34d399; }
-    .terminal-body { padding: 20px; font-family: var(--mono); font-size: 13px; line-height: 1.85; overflow-x: auto; }
-    .terminal-line { display: flex; gap: 8px; }
-    .terminal-prompt { color: var(--accent); user-select: none; flex-shrink: 0; }
-    .terminal-cmd { color: var(--text-1); }
-    .terminal-out { color: var(--text-3); }
-    .terminal-dim { color: var(--border-hi); }
-    .terminal-hi  { color: var(--accent); }
+    .terminal-body { padding: 18px 20px; font-family: var(--mono); font-size: 12.5px; line-height: 1.85; overflow-x: auto; }
+    .t-line { display: flex; gap: 8px; }
+    .t-prompt { color: var(--accent); user-select: none; flex-shrink: 0; }
+    .t-cmd { color: var(--text-1); }
+    .t-out { color: var(--text-3); }
+    .t-dim { color: var(--border-hi); }
+    .t-hi { color: var(--accent); }
 
-    /* ── Section ── */
-    .section { padding: 100px 0; }
+    /* Sections */
+    .section { padding: 96px 0; }
     .section-alt { background: var(--bg-raised); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .section-title { font-size: clamp(28px, 4vw, 36px); font-weight: 700; color: var(--text-1); letter-spacing: -.025em; margin-bottom: 48px; }
-    .section-subtitle { font-size: 15px; color: var(--text-3); margin-top: -40px; margin-bottom: 48px; }
+    .section-title { font-size: clamp(26px, 3.5vw, 34px); font-weight: 700; color: var(--text-1); letter-spacing: -.025em; margin-bottom: 14px; }
+    .section-desc { font-size: 15px; color: var(--text-3); max-width: 560px; margin-bottom: 48px; }
 
-    /* ── Features ── */
-    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
-    .feature { background: var(--bg-base); padding: 28px 24px; display: flex; flex-direction: column; gap: 8px; transition: background .15s; min-width: 0; }
+    /* Features grid */
+    .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+    .feature { background: var(--bg); padding: 26px 22px; display: flex; flex-direction: column; gap: 8px; transition: background .15s; min-width: 0; }
     .feature:hover { background: var(--bg-surface); }
-    .feature-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: var(--accent-bg); color: var(--accent); font-size: 15px; margin-bottom: 6px; }
+    .feature-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: var(--accent-bg); color: var(--accent); font-size: 15px; margin-bottom: 4px; }
     .feature-title { font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: -.01em; }
-    .feature-desc  { font-size: 13px; color: var(--text-3); line-height: 1.6; }
+    .feature-desc { font-size: 13px; color: var(--text-3); line-height: 1.6; }
 
-    /* ── Code Block ── */
-    .code-block { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
-    .code-header { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--text-3); }
-    .code-body { padding: 20px; font-family: var(--mono); font-size: 13px; line-height: 1.9; overflow-x: auto; white-space: pre; }
+    /* Learn more links */
+    .learn-more { margin-top: 28px; text-align: center; }
+    .learn-more a { font-size: 14px; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; transition: opacity .15s; }
+    .learn-more a:hover { opacity: .7; }
+
+    /* Why cards */
+    .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .why-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 28px 24px; transition: border-color .2s; }
+    .why-card:hover { border-color: var(--border-hi); }
+    .why-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: var(--accent-bg); color: var(--accent); margin-bottom: 14px; }
+    .why-title { font-size: 16px; font-weight: 600; color: var(--text-1); margin-bottom: 8px; }
+    .why-desc { font-size: 14px; color: var(--text-3); line-height: 1.6; }
+
+    /* How it works flow */
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; align-items: start; }
+    .flow-step { text-align: center; padding: 24px 16px; position: relative; }
+    .flow-num { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+    .flow-label { font-size: 14px; font-weight: 600; color: var(--text-1); margin-bottom: 6px; }
+    .flow-desc { font-size: 12.5px; color: var(--text-3); line-height: 1.5; }
+    .flow-arrow { position: absolute; right: -10px; top: 36px; color: var(--border-hi); font-size: 18px; }
     .ck { color: var(--accent); } .cs { color: var(--text-2); } .cc { color: var(--text-3); font-style: italic; } .cv { color: #f9a8d4; }
 
-    /* ── Quick Start ── */
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    /* Use cases */
+    .usecases { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .usecase { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 28px 24px; transition: border-color .2s; min-width: 0; }
+    .usecase:hover { border-color: var(--border-hi); }
+    .usecase-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: var(--accent-bg); color: var(--accent); margin-bottom: 14px; }
+    .usecase-title { font-size: 16px; font-weight: 600; color: var(--text-1); margin-bottom: 8px; }
+    .usecase-desc { font-size: 14px; color: var(--text-3); line-height: 1.6; margin-bottom: 14px; }
+    .usecase-code { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 12px; font-family: var(--mono); font-size: 12px; color: var(--text-2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+
+    /* Audience */
+    .audience-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .audience-card { padding: 24px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--bg-surface); transition: border-color .2s; }
+    .audience-card:hover { border-color: var(--border-hi); }
+    .audience-role { font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+    .audience-desc { font-size: 13px; color: var(--text-3); line-height: 1.6; }
+
+    /* Quick start */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .step { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 28px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
     .step-num { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500; }
     .step-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
-    .step-code { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 14px; font-family: var(--mono); font-size: 12.5px; color: var(--text-2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+    .step-code { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 14px; font-family: var(--mono); font-size: 12.5px; color: var(--text-2); line-height: 1.7; overflow-x: auto; white-space: pre; }
 
-    /* ── Footer ── */
+    /* Footer */
     footer { border-top: 1px solid var(--border); padding: 40px 0; }
     .footer-inner { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-3); }
     .footer-links { display: flex; gap: 24px; }
     .footer-links a { color: var(--text-3); }
     .footer-links a:hover { color: var(--text-2); }
 
-    /* ── Responsive ── */
+    /* Responsive */
     @media (max-width: 900px) {
-      .hero { padding: 72px 0 56px; }
-      .hero-grid { grid-template-columns: 1fr; gap: 40px; }
-      .terminal { display: none; }
+      .hero { padding: 56px 0 48px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 36px; }
       .features { grid-template-columns: repeat(2, 1fr); }
-      .steps { grid-template-columns: 1fr; }
+      .why-grid { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .flow-arrow { display: none; }
+      .steps, .audience-grid { grid-template-columns: 1fr; }
+      .usecases { grid-template-columns: 1fr; }
       .nav-links { display: none; }
     }
-    @media (max-width: 560px) {
+    @media (max-width: 640px) {
+      .terminal { display: none; }
       .features { grid-template-columns: 1fr; }
-      .hero h1 { font-size: 32px; }
+      .hero h1 { font-size: 30px; }
       .section { padding: 64px 0; }
-      .section-title { margin-bottom: 32px; }
+      .section-title { margin-bottom: 10px; }
       .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+      .badge-strip { gap: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .feature, .usecase, .audience-card, .btn { transition: none; }
     }
   </style>
 </head>
 <body>
 
-<!-- ── Nav ── -->
+<!-- Nav -->
 <nav>
   <div class="nav-inner">
     <div class="logo"><span class="logo-mark">H</span>HookRun</div>
     <div class="nav-right">
       <div class="nav-links">
         <a href="#features" data-i18n="nav_features">Features</a>
-        <a href="#configuration" data-i18n="nav_config">Configuration</a>
+        <a href="#usecases" data-i18n="nav_usecases">Use Cases</a>
+        <a href="#why" data-i18n="nav_why">Why HookRun</a>
         <a href="#quickstart" data-i18n="nav_quickstart">Quick Start</a>
-        <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener">GitHub ↗</a>
+        <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener">GitHub</a>
       </div>
       <div class="lang-btn">
         <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
@@ -157,135 +240,225 @@
   </div>
 </nav>
 
-<!-- ── Hero ── -->
+<!-- Hero -->
 <section class="hero">
   <div class="container">
     <div class="hero-grid">
       <div>
-        <div class="hero-eyebrow" data-i18n="hero_eyebrow">v1.1.0 — OPEN SOURCE</div>
         <h1 data-i18n-html="hero_title">Webhook in,<br>action out.</h1>
-        <p data-i18n="hero_desc">A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform.</p>
+        <p data-i18n="hero_desc">A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.</p>
         <div class="hero-ctas">
           <a href="#quickstart" class="btn btn-primary" data-i18n="hero_cta_start">Get Started</a>
-          <a href="https://github.com/bluvenr/hookrun" class="btn btn-ghost" target="_blank" rel="noopener" data-i18n="hero_cta_github">View on GitHub</a>
+          <a href="https://github.com/bluvenr/hookrun" class="btn btn-ghost" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z"/></svg>
+            <span data-i18n="hero_cta_github">View on GitHub</span>
+          </a>
+        </div>
+        <div class="badge-strip">
+          <span class="badge badge-accent"><span class="badge-dot"></span>MIT License</span>
+          <span class="badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span data-i18n="badge_cross">Cross-platform</span>
+          </span>
+          <span class="badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+            <span data-i18n="badge_binary">Single Binary</span>
+          </span>
+          <span class="badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span data-i18n="badge_deps">Zero Dependencies</span>
+          </span>
+          <span class="badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span data-i18n="badge_perf">High Performance</span>
+          </span>
         </div>
       </div>
       <div class="terminal">
         <div class="terminal-bar"><span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span></div>
-        <div class="terminal-body"><div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">hookrun validate</span></div>
-<div class="terminal-out">Validating config: config.yaml</div>
-<div><span class="terminal-hi">PASS:</span> <span data-i18n="term_valid">All configurations are valid</span></div>
-<div class="terminal-dim">  Server port: 9000</div>
-<div class="terminal-dim">  Webhook route: /webhook</div>
-<div class="terminal-dim">  Rule files loaded: 1</div>
-<div class="terminal-dim">    - github-auto-deploy (2 rules) <span class="terminal-hi">[auth: token]</span></div>
+        <div class="terminal-body">
+<div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">hookrun validate</span></div>
+<div class="t-out">Validating config: config.yaml</div>
+<div><span class="t-hi">PASS:</span> <span data-i18n="term_valid">All configurations are valid</span></div>
+<div class="t-dim">  Server port: 9000</div>
+<div class="t-dim">  Webhook route: /webhook</div>
+<div class="t-dim">  Rule files loaded: 1</div>
+<div class="t-dim">    - github-auto-deploy (2 rules) <span class="t-hi">[auth: token]</span></div>
 <br>
-<div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">hookrun start</span></div>
-<div class="terminal-out" data-i18n="term_started">HookRun started in background (PID: 8421)</div>
+<div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">hookrun start</span></div>
+<div class="t-out" data-i18n="term_started">HookRun started in background (PID: 8421)</div>
 <br>
-<div class="terminal-line"><span class="terminal-prompt">$</span><span class="terminal-cmd">curl -X POST .../webhook/github-auto-deploy \</span></div>
-<div class="terminal-line"><span class="terminal-out">&nbsp;&nbsp;-H "X-GitHub-Event: push" -d '{"ref":"refs/heads/main"}'</span></div>
-<div><span class="terminal-hi">→</span> <span class="terminal-out">{"code":200,"rule":"push-to-main","actions":3}</span></div></div>
+<div class="t-line"><span class="t-prompt">$</span><span class="t-cmd">curl -X POST .../webhook/github-auto-deploy</span></div>
+<div><span class="t-hi">&rarr;</span> <span class="t-out">{"code":200,"rule":"push-to-main","actions":3}</span></div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Features ── -->
+<!-- Features -->
 <section class="section section-alt" id="features">
   <div class="container">
     <h2 class="section-title" data-i18n="feat_title">Capabilities</h2>
+    <p class="section-desc" data-i18n="feat_desc">Everything you need to automate server-side workflows from webhook events.</p>
     <div class="features">
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
         <div class="feature-title" data-i18n="f1_title">YAML Driven</div>
-        <div class="feature-desc" data-i18n-html="f1_desc">All rules defined in YAML files. No code, no database — just config files in a directory.</div>
+        <div class="feature-desc" data-i18n-html="f1_desc">All rules defined in YAML files. No code, no database, just config files.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
         <div class="feature-title" data-i18n="f2_title">Targeted Routing</div>
-        <div class="feature-desc" data-i18n-html="f2_desc"><code>/webhook/{filename}</code> routes directly to a specific config file for precise, efficient matching.</div>
+        <div class="feature-desc" data-i18n-html="f2_desc"><code>/webhook/{filename}</code> routes directly to a specific config for precise matching.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div class="feature-title" data-i18n="f3_title">Flexible Auth</div>
-        <div class="feature-desc" data-i18n-html="f3_desc">Token verification, HMAC signatures (GitHub/GitLab), and IP whitelisting — combined with AND logic.</div>
+        <div class="feature-desc" data-i18n-html="f3_desc">Token verification, HMAC signatures (GitHub/GitLab), and IP whitelisting with AND logic.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
         <div class="feature-title" data-i18n="f4_title">Multi-Condition Filters</div>
-        <div class="feature-desc" data-i18n-html="f4_desc">Match against headers, query params, or JSON body with <code>eq</code> <code>ne</code> <code>contains</code> <code>regex</code> operators.</div>
+        <div class="feature-desc" data-i18n-html="f4_desc">Match headers, query params, or JSON body with <code>eq</code> <code>ne</code> <code>contains</code> <code>regex</code>.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg></div>
         <div class="feature-title" data-i18n="f5_title">Execution Policies</div>
-        <div class="feature-desc" data-i18n-html="f5_desc"><code>block</code> to prevent concurrency, <code>always</code> to run every time, <code>cooldown</code> for rate limiting.</div>
+        <div class="feature-desc" data-i18n-html="f5_desc"><code>block</code> prevents concurrency, <code>always</code> runs every time, <code>cooldown</code> for rate limiting.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
         <div class="feature-title" data-i18n="f6_title">Template Variables</div>
-        <div class="feature-desc" data-i18n-html="f6_desc">Inject request data directly into commands with <code>{{.body.ref}}</code>, <code>{{.header.X}}</code>, and <code>pass_args</code>.</div>
+        <div class="feature-desc" data-i18n-html="f6_desc">Inject request data into commands with <code>{{.body.ref}}</code>, <code>{{.header.X}}</code>, and <code>pass_args</code>.</div>
       </div>
       <div class="feature">
         <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
         <div class="feature-title" data-i18n="f7_title">Hot Reload</div>
-        <div class="feature-desc" data-i18n="f7_desc">Reload all YAML configurations at runtime via CLI — no restart, no downtime.</div>
+        <div class="feature-desc" data-i18n="f7_desc">Reload all YAML configurations at runtime via CLI. No restart, no downtime.</div>
       </div>
       <div class="feature">
-        <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-        <div class="feature-title" data-i18n="f8_title">Single Binary</div>
-        <div class="feature-desc" data-i18n="f8_desc">Written in Go. One binary for Linux, macOS, and Windows. No runtime dependencies.</div>
+        <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div class="feature-title" data-i18n="f8_title">High Performance</div>
+        <div class="feature-desc" data-i18n="f8_desc">Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.</div>
       </div>
     </div>
+    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="feat_more" data-i18n-doc="docs/configuration">Full configuration reference &rarr;</a></div>
   </div>
 </section>
 
-<!-- ── Configuration ── -->
-<section class="section" id="configuration">
+<!-- Use Cases -->
+<section class="section" id="usecases">
   <div class="container">
-    <h2 class="section-title" data-i18n="cfg_title">Configuration</h2>
-    <p class="section-subtitle" data-i18n="cfg_subtitle">One YAML file per scenario. Filters match the request, actions execute the commands.</p>
-    <div class="code-block">
-      <div class="code-header">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        hooks/github-deploy.yaml
+    <h2 class="section-title" data-i18n="uc_title">What Can HookRun Do?</h2>
+    <p class="section-desc" data-i18n="uc_desc">From automated deployments to service integration, HookRun turns webhook events into actions.</p>
+    <div class="usecases">
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <div class="usecase-title" data-i18n="uc1_title">Git Auto Deploy</div>
+        <div class="usecase-desc" data-i18n="uc1_desc">Push to GitHub or GitLab and your server pulls, builds, and deploys automatically. No manual SSH needed.</div>
+        <div class="usecase-code"><span class="ck">filters</span>:
+  - <span class="ck">type</span>: <span class="cs">"header"</span>
+    <span class="ck">key</span>:  <span class="cs">"X-GitHub-Event"</span>
+    <span class="ck">operator</span>: <span class="cs">"eq"</span>
+    <span class="ck">value</span>: <span class="cs">"push"</span></div>
       </div>
-      <div class="code-body"><span class="ck">name</span>: <span class="cs">"github-auto-deploy"</span>
-
-<span class="ck">auth</span>:
-  <span class="ck">hmac</span>:
-    <span class="ck">header</span>: <span class="cs">"X-Hub-Signature-256"</span>
-    <span class="ck">secret</span>: <span class="cs">"your-github-webhook-secret"</span>
-
-<span class="ck">execution</span>:
-  <span class="ck">policy</span>: <span class="cs">"block"</span>          <span class="cc" data-i18n="cfg_comment1"># prevent concurrent deploys</span>
-
-<span class="ck">rules</span>:
-  - <span class="ck">name</span>: <span class="cs">"deploy-main"</span>
-    <span class="ck">filters</span>:
-      - <span class="ck">type</span>: <span class="cs">"header"</span>
-        <span class="ck">key</span>:  <span class="cs">"X-GitHub-Event"</span>
-        <span class="ck">operator</span>: <span class="cs">"eq"</span>
-        <span class="ck">value</span>: <span class="cs">"push"</span>
-      - <span class="ck">type</span>: <span class="cs">"body"</span>
-        <span class="ck">key</span>:  <span class="cs">"ref"</span>
-        <span class="ck">operator</span>: <span class="cs">"eq"</span>
-        <span class="ck">value</span>: <span class="cs">"refs/heads/main"</span>
-    <span class="ck">actions</span>:
-      - <span class="ck">type</span>: <span class="cs">"command"</span>
-        <span class="ck">cmd</span>:  <span class="cs">"cd /var/www/app && git pull origin </span><span class="cv">{{.body.ref}}</span><span class="cs">"</span>
-        <span class="ck">timeout</span>: <span class="cv">120</span>
-      - <span class="ck">type</span>: <span class="cs">"command"</span>
-        <span class="ck">cmd</span>:  <span class="cs">"npm install --production && npm run build"</span>
-        <span class="ck">timeout</span>: <span class="cv">120</span></div>
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div class="usecase-title" data-i18n="uc2_title">CI/CD Pipeline Trigger</div>
+        <div class="usecase-desc" data-i18n="uc2_desc">Chain webhook events into multi-step build pipelines with timeout control and concurrency protection.</div>
+        <div class="usecase-code"><span class="ck">execution</span>:
+  <span class="ck">policy</span>: <span class="cs">"block"</span>
+<span class="ck">actions</span>:
+  - <span class="ck">type</span>: <span class="cs">"script"</span>
+    <span class="ck">path</span>: <span class="cs">"./build.sh"</span></div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+        <div class="usecase-title" data-i18n="uc3_title">Monitoring Alerts</div>
+        <div class="usecase-desc" data-i18n="uc3_desc">Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts.</div>
+        <div class="usecase-code"><span class="ck">execution</span>:
+  <span class="ck">policy</span>: <span class="cs">"cooldown"</span>
+  <span class="ck">cooldown_seconds</span>: <span class="cv">300</span></div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <div class="usecase-title" data-i18n="uc4_title">Custom Automation</div>
+        <div class="usecase-desc" data-i18n="uc4_desc">Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.</div>
+        <div class="usecase-code"><span class="ck">actions</span>:
+  - <span class="ck">type</span>: <span class="cs">"command"</span>
+    <span class="ck">cmd</span>:  <span class="cs">"notify.sh {{.body.text}}"</span></div>
+      </div>
     </div>
+    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" data-i18n="uc_more" data-i18n-doc="docs/usage">Usage guide and more scenarios &rarr;</a></div>
   </div>
 </section>
 
-<!-- ── Quick Start ── -->
-<section class="section section-alt" id="quickstart">
+<!-- Why HookRun -->
+<section class="section section-alt" id="why">
+  <div class="container">
+    <h2 class="section-title" data-i18n="why_title">Why HookRun?</h2>
+    <p class="section-desc" data-i18n="why_desc">Purpose-built for webhook automation. Secure, lightweight, and fully under your control.</p>
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div class="why-title" data-i18n="why1_title">Security First</div>
+        <div class="why-desc" data-i18n="why1_desc">Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <div class="why-title" data-i18n="why2_title">Lightweight</div>
+        <div class="why-desc" data-i18n="why2_desc">One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <div class="why-title" data-i18n="why3_title">Full Control</div>
+        <div class="why-desc" data-i18n="why3_desc">Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.</div>
+      </div>
+    </div>
+    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener" data-i18n="why_more">View project on GitHub &rarr;</a></div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section class="section" id="how">
+  <div class="container">
+    <h2 class="section-title" data-i18n="how_title">How It Works</h2>
+    <p class="section-desc" data-i18n="how_desc">From HTTP request to command execution in four steps.</p>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <div class="flow-label" data-i18n="how1_label">Request</div>
+        <div class="flow-desc" data-i18n="how1_desc">HTTP POST arrives at /webhook/{filename}</div>
+        <span class="flow-arrow">&rarr;</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <div class="flow-label" data-i18n="how2_label">Authenticate</div>
+        <div class="flow-desc" data-i18n="how2_desc">Token, HMAC signature, and IP whitelist checks</div>
+        <span class="flow-arrow">&rarr;</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <div class="flow-label" data-i18n="how3_label">Match</div>
+        <div class="flow-desc" data-i18n="how3_desc">Filters evaluate headers, query, and body</div>
+        <span class="flow-arrow">&rarr;</span>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">04</div>
+        <div class="flow-label" data-i18n="how4_label">Execute</div>
+        <div class="flow-desc" data-i18n="how4_desc">Commands and scripts run with request data injected</div>
+      </div>
+    </div>
+    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="how_more" data-i18n-doc="docs/configuration">Detailed configuration guide &rarr;</a></div>
+  </div>
+</section>
+
+<!-- Quick Start -->
+<section class="section" id="quickstart">
   <div class="container">
     <h2 class="section-title" data-i18n="qs_title">Quick Start</h2>
+    <p class="section-desc" data-i18n="qs_desc">From source to running webhook server in three steps.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num">01</div>
@@ -307,18 +480,55 @@ hookrun validate</div>
 hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span></div>
       </div>
     </div>
+    <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/deployment.md" target="_blank" rel="noopener" data-i18n="qs_more" data-i18n-doc="docs/deployment">Deployment: systemd, Docker, reverse proxy &rarr;</a></div>
   </div>
 </section>
 
-<!-- ── Footer ── -->
+<!-- Audience -->
+<section class="section section-alt" id="audience">
+  <div class="container">
+    <h2 class="section-title" data-i18n="aud_title">Built For</h2>
+    <p class="section-desc" data-i18n="aud_desc">HookRun is the right tool if you need a simple, reliable bridge between webhooks and server actions.</p>
+    <div class="audience-grid">
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud1_role">DevOps Engineers</div>
+        <div class="audience-desc" data-i18n="aud1_desc">Automate deployments and ops triggered by Git events without complex CI/CD pipelines.</div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud2_role">Backend Developers</div>
+        <div class="audience-desc" data-i18n="aud2_desc">Build webhook-driven integrations without writing boilerplate HTTP handlers or webhook parsers.</div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud3_role">SRE Teams</div>
+        <div class="audience-desc" data-i18n="aud3_desc">Run automated remediation scripts when monitoring alerts fire. Self-healing infrastructure made simple.</div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud4_role">Indie Developers</div>
+        <div class="audience-desc" data-i18n="aud4_desc">Lightweight automation for personal servers. No Docker, no Kubernetes, just one binary.</div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud5_role">Sys Admins</div>
+        <div class="audience-desc" data-i18n="aud5_desc">Turn incoming HTTP events into shell commands. YAML config, no scripting language required.</div>
+      </div>
+      <div class="audience-card">
+        <div class="audience-role" data-i18n="aud6_role">Small Teams</div>
+        <div class="audience-desc" data-i18n="aud6_desc">Self-hosted, open source, no SaaS dependency. Full control over your automation stack.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
 <footer>
   <div class="container">
     <div class="footer-inner">
-      <span>HookRun — MIT License</span>
+      <span>HookRun - MIT License</span>
       <div class="footer-links">
         <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/bluvenr/hookrun/releases" target="_blank" rel="noopener">Releases</a>
-        <a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="footer_docs">Docs</a>
+        <a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="footer_docs" data-i18n-doc="docs/configuration">Docs</a>
+        <a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" data-i18n="footer_usage" data-i18n-doc="docs/usage">Usage</a>
+        <a href="https://github.com/bluvenr/hookrun/blob/main/docs/deployment.md" target="_blank" rel="noopener" data-i18n="footer_deploy" data-i18n-doc="docs/deployment">Deployment</a>
       </div>
     </div>
   </div>
@@ -327,50 +537,108 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
 <script>
 const T = {
   en: {
-    nav_features: "Features", nav_config: "Configuration", nav_quickstart: "Quick Start",
-    hero_eyebrow: "v1.1.0 — OPEN SOURCE",
+    nav_features: "Features", nav_usecases: "Use Cases", nav_why: "Why HookRun", nav_quickstart: "Quick Start",
     hero_title: "Webhook in,<br>action out.",
-    hero_desc: "A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform.",
+    hero_desc: "A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.",
     hero_cta_start: "Get Started", hero_cta_github: "View on GitHub",
+    badge_cross: "Cross-platform", badge_binary: "Single Binary", badge_deps: "Zero Dependencies", badge_perf: "High Performance",
     term_valid: "All configurations are valid", term_started: "HookRun started in background (PID: 8421)",
     feat_title: "Capabilities",
-    f1_title: "YAML Driven", f1_desc: "All rules defined in YAML files. No code, no database — just config files in a directory.",
-    f2_title: "Targeted Routing", f2_desc: "<code>/webhook/{filename}</code> routes directly to a specific config file for precise, efficient matching.",
-    f3_title: "Flexible Auth", f3_desc: "Token verification, HMAC signatures (GitHub/GitLab), and IP whitelisting — combined with AND logic.",
-    f4_title: "Multi-Condition Filters", f4_desc: "Match against headers, query params, or JSON body with <code>eq</code> <code>ne</code> <code>contains</code> <code>regex</code> operators.",
-    f5_title: "Execution Policies", f5_desc: "<code>block</code> to prevent concurrency, <code>always</code> to run every time, <code>cooldown</code> for rate limiting.",
-    f6_title: "Template Variables", f6_desc: "Inject request data directly into commands with <code>{{.body.ref}}</code>, <code>{{.header.X}}</code>, and <code>pass_args</code>.",
-    f7_title: "Hot Reload", f7_desc: "Reload all YAML configurations at runtime via CLI — no restart, no downtime.",
-    f8_title: "Single Binary", f8_desc: "Written in Go. One binary for Linux, macOS, and Windows. No runtime dependencies.",
-    cfg_title: "Configuration", cfg_subtitle: "One YAML file per scenario. Filters match the request, actions execute the commands.",
-    cfg_comment1: "# prevent concurrent deploys",
-    qs_title: "Quick Start",
+    feat_more: "Full configuration reference \u2192",
+    feat_desc: "Everything you need to automate server-side workflows from webhook events.",
+    f1_title: "YAML Driven", f1_desc: "All rules defined in YAML files. No code, no database, just config files.",
+    f2_title: "Targeted Routing", f2_desc: "<code>/webhook/{filename}</code> routes directly to a specific config for precise matching.",
+    f3_title: "Flexible Auth", f3_desc: "Token verification, HMAC signatures (GitHub/GitLab), and IP whitelisting with AND logic.",
+    f4_title: "Multi-Condition Filters", f4_desc: "Match headers, query params, or JSON body with <code>eq</code> <code>ne</code> <code>contains</code> <code>regex</code>.",
+    f5_title: "Execution Policies", f5_desc: "<code>block</code> prevents concurrency, <code>always</code> runs every time, <code>cooldown</code> for rate limiting.",
+    f6_title: "Template Variables", f6_desc: "Inject request data into commands with <code>{{.body.ref}}</code>, <code>{{.header.X}}</code>, and <code>pass_args</code>.",
+    f7_title: "Hot Reload", f7_desc: "Reload all YAML configurations at runtime via CLI. No restart, no downtime.",
+    f8_title: "High Performance", f8_desc: "Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.",
+    uc_title: "What Can HookRun Do?",
+    uc_desc: "From automated deployments to service integration, HookRun turns webhook events into actions.",
+    uc1_title: "Git Auto Deploy", uc1_desc: "Push to GitHub or GitLab and your server pulls, builds, and deploys automatically. No manual SSH needed.",
+    uc2_title: "CI/CD Pipeline Trigger", uc2_desc: "Chain webhook events into multi-step build pipelines with timeout control and concurrency protection.",
+    uc3_title: "Monitoring Alerts", uc3_desc: "Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts.",
+    uc4_title: "Custom Automation", uc4_desc: "Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.",
+    uc_more: "Usage guide and more scenarios \u2192",
+    why_title: "Why HookRun?",
+    why_desc: "Purpose-built for webhook automation. Secure, lightweight, and fully under your control.",
+    why1_title: "Security First", why1_desc: "Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe.",
+    why2_title: "Lightweight", why2_desc: "One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources.",
+    why3_title: "Full Control", why3_desc: "Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.",
+    why_more: "View project on GitHub \u2192",
+    how_title: "How It Works",
+    how_desc: "From HTTP request to command execution in four steps.",
+    how1_label: "Request", how1_desc: "HTTP POST arrives at /webhook/{filename}",
+    how2_label: "Authenticate", how2_desc: "Token, HMAC signature, and IP whitelist checks",
+    how3_label: "Match", how3_desc: "Filters evaluate headers, query, and body",
+    how4_label: "Execute", how4_desc: "Commands and scripts run with request data injected",
+    how_more: "Detailed configuration guide \u2192",
+    qs_title: "Quick Start", qs_desc: "From source to running webhook server in three steps.",
     qs_s1_title: "Build", qs_s2_title: "Configure", qs_s2_comment: "# Edit config.yaml and hooks/*.yaml",
     qs_s3_title: "Run", qs_s3_c1: "# daemon mode", qs_s3_c2: "# foreground",
-    footer_docs: "Docs"
+    qs_more: "Deployment: systemd, Docker, reverse proxy \u2192",
+    aud_title: "Built For",
+    aud_desc: "HookRun is the right tool if you need a simple, reliable bridge between webhooks and server actions.",
+    aud1_role: "DevOps Engineers", aud1_desc: "Automate deployments and ops triggered by Git events without complex CI/CD pipelines.",
+    aud2_role: "Backend Developers", aud2_desc: "Build webhook-driven integrations without writing boilerplate HTTP handlers or webhook parsers.",
+    aud3_role: "SRE Teams", aud3_desc: "Run automated remediation scripts when monitoring alerts fire. Self-healing infrastructure made simple.",
+    aud4_role: "Indie Developers", aud4_desc: "Lightweight automation for personal servers. No Docker, no Kubernetes, just one binary.",
+    aud5_role: "Sys Admins", aud5_desc: "Turn incoming HTTP events into shell commands. YAML config, no scripting language required.",
+    aud6_role: "Small Teams", aud6_desc: "Self-hosted, open source, no SaaS dependency. Full control over your automation stack.",
+    footer_docs: "Config", footer_usage: "Usage", footer_deploy: "Deployment"
   },
   zh: {
-    nav_features: "特性", nav_config: "配置说明", nav_quickstart: "快速开始",
-    hero_eyebrow: "v1.1.0 — 开源免费",
+    nav_features: "特性", nav_usecases: "使用场景", nav_why: "为什么选 HookRun", nav_quickstart: "快速开始",
     hero_title: "Webhook 触发，<br>自动执行。",
-    hero_desc: "轻量级 Webhook 动作引擎 —— 基于 YAML 规则，接收 Webhook 请求后自动执行自定义命令和脚本。单二进制文件，跨平台支持。",
+    hero_desc: "轻量级 Webhook 动作引擎，基于 YAML 规则，接收 Webhook 请求后自动执行自定义命令和脚本。单二进制文件，跨平台支持，开源免费。",
     hero_cta_start: "快速开始", hero_cta_github: "查看 GitHub",
+    badge_cross: "跨平台", badge_binary: "单二进制", badge_deps: "零依赖", badge_perf: "高性能",
     term_valid: "所有配置校验通过", term_started: "HookRun 已在后台启动 (PID: 8421)",
     feat_title: "核心能力",
-    f1_title: "YAML 驱动", f1_desc: "所有规则通过 YAML 文件定义，无需编码、无需数据库 —— 只有配置文件。",
+    feat_desc: "将 Webhook 事件转化为自动化服务端工作流所需的一切。",
+    f1_title: "YAML 驱动", f1_desc: "所有规则通过 YAML 文件定义，无需编码、无需数据库，只有配置文件。",
     f2_title: "定向路由", f2_desc: "<code>/webhook/{filename}</code> 直接路由到指定配置文件，精准高效匹配。",
-    f3_title: "灵活验证", f3_desc: "Token 验证、HMAC 签名验证（GitHub/GitLab）、IP 白名单 —— AND 关系组合。",
+    f3_title: "灵活验证", f3_desc: "Token 验证、HMAC 签名验证 (GitHub/GitLab)、IP 白名单，AND 关系组合。",
     f4_title: "多条件过滤", f4_desc: "支持 Header / Query / Body 匹配，操作符：<code>eq</code> <code>ne</code> <code>contains</code> <code>regex</code>。",
     f5_title: "执行策略", f5_desc: "<code>block</code> 防并发、<code>always</code> 始终执行、<code>cooldown</code> 冷却限频。",
     f6_title: "模板变量", f6_desc: "通过 <code>{{.body.ref}}</code>、<code>{{.header.X}}</code> 和 <code>pass_args</code> 将请求数据注入命令。",
-    f7_title: "热重载", f7_desc: "运行中通过 CLI 热重载所有 YAML 配置 —— 无需重启、零停机。",
-    f8_title: "单二进制", f8_desc: "Go 语言编写，一个二进制文件覆盖 Linux、macOS、Windows，无运行时依赖。",
-    cfg_title: "配置示例", cfg_subtitle: "每个场景一个 YAML 文件。过滤条件匹配请求，动作执行命令。",
-    cfg_comment1: "# 防止并发部署",
-    qs_title: "快速开始",
+    f7_title: "热重载", f7_desc: "运行中通过 CLI 热重载所有 YAML 配置，无需重启、零停机。",
+    f8_title: "高性能", f8_desc: "Go 原生并发，一个二进制文件覆盖 Linux、macOS、Windows，零运行时依赖。",
+    feat_more: "完整配置参数参考 \u2192",
+    uc_title: "HookRun 能做什么？",
+    uc_desc: "从自动化部署到服务集成，HookRun 将 Webhook 事件转化为实际行动。",
+    uc1_title: "Git 自动部署", uc1_desc: "推送到 GitHub 或 GitLab，服务器自动拉取、构建、部署，无需手动 SSH。",
+    uc2_title: "CI/CD 流水线触发", uc2_desc: "将 Webhook 事件串联为多步骤构建流水线，支持超时控制和并发保护。",
+    uc3_title: "监控告警响应", uc3_desc: "接收 Grafana、Prometheus 等监控告警，自动执行修复脚本。",
+    uc4_title: "自定义自动化", uc4_desc: "任何 HTTP POST 都是触发器。同步数据、发送通知、管理基础设施等。",
+    uc_more: "使用指南与更多场景 \u2192",
+    why_title: "为什么选 HookRun？",
+    why_desc: "专为 Webhook 自动化打造。安全、轻巧、完全由你掌控。",
+    why1_title: "安全优先", why1_desc: "Token 认证、HMAC 签名验证、IP 白名单。多层防御保障端点安全。",
+    why2_title: "轻量灵活", why2_desc: "一个二进制文件，不到 5MB。无需数据库、无需容器运行时、无重型依赖。极低资源即可运行。",
+    why3_title: "完全可控", why3_desc: "MIT 开源协议。自托管在你自己的服务器上。你的规则、你的数据、你的基础设施。",
+    why_more: "在 GitHub 上查看项目 \u2192",
+    how_title: "工作流程",
+    how_desc: "从 HTTP 请求到命令执行，只需四步。",
+    how1_label: "接收请求", how1_desc: "HTTP POST 到达 /webhook/{filename}",
+    how2_label: "身份验证", how2_desc: "Token、HMAC 签名、IP 白名单检查",
+    how3_label: "规则匹配", how3_desc: "过滤条件评估 Header、Query、Body",
+    how4_label: "执行动作", how4_desc: "运行命令和脚本，注入请求数据",
+    how_more: "详细配置指南 \u2192",
+    qs_title: "快速开始", qs_desc: "三步完成：从源码到运行中的 Webhook 服务器。",
     qs_s1_title: "编译", qs_s2_title: "配置", qs_s2_comment: "# 编辑 config.yaml 和 hooks/*.yaml",
     qs_s3_title: "运行", qs_s3_c1: "# 后台守护模式", qs_s3_c2: "# 前台模式",
-    footer_docs: "文档"
+    qs_more: "部署指南: systemd、Docker、反向代理 \u2192",
+    aud_title: "适合谁用？",
+    aud_desc: "如果你需要一个简单、可靠的工具来连接 Webhook 和服务器动作，HookRun 就是答案。",
+    aud1_role: "DevOps 工程师", aud1_desc: "通过 Git 事件自动触发部署和运维操作，无需复杂 CI/CD 流水线。",
+    aud2_role: "后端开发者", aud2_desc: "构建 Webhook 驱动的集成，无需编写 HTTP 处理器或 Webhook 解析代码。",
+    aud3_role: "SRE 团队", aud3_desc: "监控告警触发时自动运行修复脚本，让基础设施自愈变得简单。",
+    aud4_role: "独立开发者", aud4_desc: "个人服务器的轻量自动化。不用 Docker，不用 Kubernetes，一个二进制搞定。",
+    aud5_role: "系统管理员", aud5_desc: "将 HTTP 事件转化为 Shell 命令。YAML 配置，无需掌握脚本语言。",
+    aud6_role: "小型团队", aud6_desc: "自托管、开源、不依赖 SaaS。完全掌控你的自动化栈。",
+    footer_docs: "配置", footer_usage: "使用", footer_deploy: "部署"
   }
 };
 
@@ -390,9 +658,29 @@ function setLang(l) {
   document.getElementById('btn-en').classList.toggle('active', l === 'en');
   document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
   try { localStorage.setItem('hookrun-lang', l); } catch(e) {}
+  // Update SEO title and description per language
+  var seo = l === 'zh'
+    ? { title: 'HookRun - 轻量级 Webhook 动作引擎 | YAML 驱动自动化', desc: 'HookRun 是轻量级 Webhook 动作引擎，基于 YAML 规则接收请求后自动执行命令和脚本。单二进制文件，跨平台支持（Linux/macOS/Windows），MIT 开源。' }
+    : { title: 'HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation', desc: 'HookRun is a lightweight webhook action engine that executes custom commands and scripts based on YAML rules. Single binary, cross-platform (Linux, macOS, Windows), open source under MIT.' };
+  document.title = seo.title;
+  var dm = document.querySelector('meta[name="description"]');
+  if (dm) dm.setAttribute('content', seo.desc);
+  var om = document.querySelector('meta[property="og:description"]');
+  if (om) om.setAttribute('content', seo.desc);
+  var ot = document.querySelector('meta[property="og:title"]');
+  if (ot) ot.setAttribute('content', seo.title);
+  var tt = document.querySelector('meta[name="twitter:title"]');
+  if (tt) tt.setAttribute('content', seo.title);
+  var td = document.querySelector('meta[name="twitter:description"]');
+  if (td) td.setAttribute('content', seo.desc);
+  // Update docs links for current language
+  document.querySelectorAll('[data-i18n-doc]').forEach(function(el) {
+    var path = el.getAttribute('data-i18n-doc');
+    var suffix = l === 'zh' ? '_zh' : '';
+    el.href = 'https://github.com/bluvenr/hookrun/blob/main/' + path + suffix + '.md';
+  });
 }
 
-// Auto-detect: saved pref > browser lang > en
 (function() {
   let saved = null;
   try { saved = localStorage.getItem('hookrun-lang'); } catch(e) {}

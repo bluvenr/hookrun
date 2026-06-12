@@ -58,6 +58,19 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Hot Reload** — Reload configs at runtime without restarting
 - **Log Management** — Daily/single mode with auto-cleanup, per-rule independent log files
 
+## Why HookRun?
+
+- **Security First** — Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe
+- **Lightweight** — One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources
+- **Full Control** — Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure
+
+## Use Cases
+
+- **Git Auto Deploy** — Push to GitHub/GitLab, server automatically pulls, builds, and deploys. No manual SSH required
+- **CI/CD Pipeline Trigger** — Chain webhook events into multi-step build pipelines with timeout control and concurrency protection
+- **Monitoring Alert Response** — Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts
+- **Custom Automation** — Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more
+
 ## Documentation
 
 | Document | Description |
