@@ -11,16 +11,22 @@ type GlobalConfig struct {
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Port           int    `yaml:"port"`
-	Route          string `yaml:"route"`
-	AllowAll       *bool  `yaml:"allow_all,omitempty"`        // allow /webhook to iterate all configs (default: true)
-	FirstMatchOnly *bool  `yaml:"first_match_only,omitempty"` // stop at first matching rule (default: true, only for allow_all)
+	Port     int    `yaml:"port"`
+	Route    string `yaml:"route"`
+	AllowAll *bool  `yaml:"allow_all,omitempty"` // allow /webhook to iterate all configs (default: true)
 }
 
 // LogConfig holds logging settings.
 type LogConfig struct {
+	Mode          string `yaml:"mode"` // "daily" (default) | "single"
 	Path          string `yaml:"path"`
-	RetentionDays int    `yaml:"retention_days"`
+	RetentionDays int    `yaml:"retention_days"` // only for daily mode
+	MaxSizeMB     int    `yaml:"max_size_mb"`    // only for single mode, 0 = unlimited (default)
+}
+
+// RuleLogConfig holds per-rule-file logging settings.
+type RuleLogConfig struct {
+	Path string `yaml:"path"` // independent log file path
 }
 
 // RuleConfig represents a single hooks/*.yaml file structure.
@@ -28,6 +34,8 @@ type RuleConfig struct {
 	Name      string           `yaml:"name"`
 	Auth      *AuthConfig      `yaml:"auth,omitempty"`
 	Execution *ExecutionConfig `yaml:"execution,omitempty"`
+	Filters   []Filter         `yaml:"filters,omitempty"` // file-level global filters (AND with rule-level)
+	Log       *RuleLogConfig   `yaml:"log,omitempty"`     // rule-level independent log file
 	Rules     []Rule           `yaml:"rules"`
 	FilePath  string           `yaml:"-"` // source file path (not from YAML)
 	FileName  string           `yaml:"-"` // file name without extension (used for routing)
@@ -66,7 +74,7 @@ type ExecutionConfig struct {
 type Rule struct {
 	Name      string           `yaml:"name"`
 	Execution *ExecutionConfig `yaml:"execution,omitempty"`
-	Filters   []Filter         `yaml:"filters"`
+	Filters   []Filter         `yaml:"filters,omitempty"`
 	Actions   []Action         `yaml:"actions"`
 }
 
@@ -104,8 +112,10 @@ func Defaults() GlobalConfig {
 			Route: "/webhook",
 		},
 		Log: LogConfig{
+			Mode:          "daily",
 			Path:          "./logs",
 			RetentionDays: 30,
+			MaxSizeMB:     0,
 		},
 		ConfigDir: "./hooks",
 	}
@@ -119,18 +129,19 @@ func (g *GlobalConfig) Validate() error {
 	if g.Server.Route == "" {
 		g.Server.Route = "/webhook"
 	}
-	// Default AllowAll to true
+	// Default AllowAll to false
 	if g.Server.AllowAll == nil {
-		t := true
-		g.Server.AllowAll = &t
-	}
-	// Default FirstMatchOnly to true
-	if g.Server.FirstMatchOnly == nil {
-		t := true
-		g.Server.FirstMatchOnly = &t
+		f := false
+		g.Server.AllowAll = &f
 	}
 	if g.Log.Path == "" {
 		g.Log.Path = "./logs"
+	}
+	if g.Log.Mode == "" {
+		g.Log.Mode = "daily"
+	}
+	if g.Log.Mode != "daily" && g.Log.Mode != "single" {
+		return fmt.Errorf("log.mode must be 'daily' or 'single', got '%s'", g.Log.Mode)
 	}
 	if g.Log.RetentionDays <= 0 {
 		g.Log.RetentionDays = 30
@@ -144,17 +155,9 @@ func (g *GlobalConfig) Validate() error {
 // IsAllowAll returns whether the base route allows iterating all configs.
 func (s *ServerConfig) IsAllowAll() bool {
 	if s.AllowAll == nil {
-		return true
+		return false
 	}
 	return *s.AllowAll
-}
-
-// IsFirstMatchOnly returns whether to stop at the first matching rule.
-func (s *ServerConfig) IsFirstMatchOnly() bool {
-	if s.FirstMatchOnly == nil {
-		return true
-	}
-	return *s.FirstMatchOnly
 }
 
 // Validate checks the RuleConfig for errors.
@@ -173,6 +176,20 @@ func (r *RuleConfig) Validate() error {
 	// Validate file-level execution
 	if r.Execution != nil {
 		if err := r.Execution.Validate(r.Name); err != nil {
+			return err
+		}
+	}
+
+	// Validate rule-level log
+	if r.Log != nil {
+		if r.Log.Path == "" {
+			return fmt.Errorf("config '%s': log.path is required when log is configured", r.Name)
+		}
+	}
+
+	// Validate file-level filters
+	for i, f := range r.Filters {
+		if err := f.Validate(r.Name+" (file-level)", i); err != nil {
 			return err
 		}
 	}
@@ -251,10 +268,7 @@ func (r *Rule) Validate(configName string, index int) error {
 		}
 	}
 
-	if len(r.Filters) == 0 {
-		return fmt.Errorf("%s '%s': at least one filter is required", prefix, r.Name)
-	}
-
+	// Filters are optional — zero filters means catch-all (matches everything)
 	for i, f := range r.Filters {
 		if err := f.Validate(r.Name, i); err != nil {
 			return err

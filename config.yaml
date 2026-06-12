@@ -2,11 +2,12 @@
 server:
   port: 9000
   route: "/webhook"
-  # allow_all: true              # allow /webhook to iterate all configs (default: true)
-  # first_match_only: true       # stop at first matching rule (default: true, only for allow_all)
+  # allow_all: false             # allow /webhook to iterate all configs (default: false)
 
 log:
+  mode: "daily"                # "daily" (default) | "single"
   path: "./logs"
-  retention_days: 30
+  retention_days: 30           # only for daily mode
+  # max_size_mb: 0             # only for single mode, 0 = unlimited (default)
 
 config_dir: "./hooks"

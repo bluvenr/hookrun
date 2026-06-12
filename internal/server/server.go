@@ -99,6 +99,7 @@ func (s *Server) Shutdown() error {
 	defer cancel()
 
 	s.logger.Info("Shutting down server...")
+	s.engine.CloseRuleLoggers()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutdown error: %w", err)
 	}
@@ -161,12 +162,8 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// Choose processing mode based on first_match_only
-		if cfg.Server.IsFirstMatchOnly() {
-			responses = s.engine.Process(reqData) // first match stops
-		} else {
-			responses = s.engine.ProcessAll(reqData) // execute all matching
-		}
+		// Choose processing mode
+		responses = s.engine.Process(reqData) // first match wins
 	}
 
 	// Log results
@@ -206,7 +203,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"uptime":  uptime.String(),
 		"rules":   s.configMgr.RuleCount(),
-		"version": "1.1.0",
+		"version": "1.1.1",
 	})
 }
 
@@ -232,6 +229,7 @@ func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update engine with new configs
+	s.engine.CloseRuleLoggers() // close old rule-level loggers
 	s.engine.UpdateConfigs(s.configMgr.Rules())
 
 	s.logger.Info("Reload successful, loaded %d rule config(s)", s.configMgr.RuleCount())

@@ -1,5 +1,7 @@
 # Usage Guide
 
+[中文](usage_zh.md)
+
 This guide covers day-to-day usage of HookRun: CLI commands, routing behavior, response formats, and common scenarios.
 
 ---
@@ -107,8 +109,8 @@ Validating config: config.yaml
 PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
-  Allow all: true
-  First match only: true
+  Allow all: false
+  Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
@@ -156,13 +158,12 @@ POST /webhook/my-app
 
 ### Base Route: `/webhook`
 
-Behavior controlled by `allow_all` and `first_match_only`:
+Behavior controlled by `allow_all`:
 
-| `allow_all` | `first_match_only` | Behavior |
-|-------------|-------------------|----------|
-| `true` (default) | `true` (default) | Iterate all configs, stop at first matching rule |
-| `true` | `false` | Iterate all configs, execute ALL matching rules |
-| `false` | — | Return 400 error (must use targeted route) |
+| `allow_all` | Behavior |
+|-------------|----------|
+| `true` | Iterate all configs, stop at first matching rule |
+| `false` (default) | Return 400 error (must use targeted route) |
 
 ### Route Matching Examples
 
@@ -263,17 +264,6 @@ When `allow_all: false` and a request is sent to `/webhook`:
   "code": 400,
   "message": "Base route iteration is disabled, please specify target: /webhook/{name}"
 }
-```
-
-### Multiple Responses
-
-When `first_match_only: false`, the response is an array:
-
-```json
-[
-  {"code": 200, "message": "ok", "config": "app-a", "rule": "deploy", "actions": 2},
-  {"code": 200, "message": "ok", "config": "app-b", "rule": "sync", "actions": 1}
-]
 ```
 
 ---
@@ -416,10 +406,24 @@ POST /webhook/api
 
 ## 5. Logging
 
+### Daily Mode (default)
+
 - Logs are written to `{log.path}/hookrun-YYYY-MM-DD.log`
 - A new file is created each day
 - Files older than `retention_days` are automatically deleted on startup
-- Each webhook request and execution result is logged with timestamp
+
+### Single Mode
+
+- Logs are written to `{log.path}/hookrun.log`
+- One fixed file; optional size-based rotation (`max_size_mb`)
+- Suitable for container environments or external log management
+
+### Rule-Level Log
+
+- Each rule config can specify `log.path` for an independent log file
+- Logs are dual-written to both global and rule-specific log files
+
+Each webhook request and execution result is logged with timestamp.
 
 ---
 

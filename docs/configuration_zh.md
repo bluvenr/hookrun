@@ -1,5 +1,7 @@
 # 配置参数说明
 
+[English](configuration.md)
+
 HookRun 使用两级 YAML 配置：
 
 1. **全局配置** (`config.yaml`) — 服务器、日志、目录设置
@@ -13,10 +15,11 @@ HookRun 使用两级 YAML 配置：
 |------|------|--------|------|
 | `server.port` | int | `9000` | HTTP 监听端口（1–65535） |
 | `server.route` | string | `/webhook` | Webhook 基础路由路径 |
-| `server.allow_all` | bool | `true` | 是否允许基础路由 `/webhook` 遍历所有配置文件 |
-| `server.first_match_only` | bool | `true` | 匹配第一个规则后停止（仅当 `allow_all: true` 时生效） |
-| `log.path` | string | `./logs` | 日志文件目录 |
-| `log.retention_days` | int | `30` | 日志保留天数 |
+| `server.allow_all` | bool | `false` | 是否允许基础路由 `/webhook` 遍历所有配置文件 |
+| `log.mode` | string | `daily` | 日志模式：`"daily"`（按天轮转）或 `"single"`（单文件） |
+| `log.path` | string | `./logs` | 日志目录（daily）或基础路径（single） |
+| `log.retention_days` | int | `30` | 日志保留天数（仅 daily 模式） |
+| `log.max_size_mb` | int | `0`（不限） | 日志文件大小上限 MB，超过后轮转（仅 single 模式） |
 | `config_dir` | string | `./hooks` | 规则 YAML 文件所在目录 |
 
 ### 示例
@@ -25,12 +28,13 @@ HookRun 使用两级 YAML 配置：
 server:
   port: 9000
   route: "/webhook"
-  allow_all: true
-  first_match_only: true
+  allow_all: false
 
 log:
+  mode: "daily"                # "daily"（默认）| "single"
   path: "./logs"
-  retention_days: 30
+  retention_days: 30           # 仅 daily 模式
+  # max_size_mb: 0             # 仅 single 模式，0 = 不限（默认）
 
 config_dir: "./hooks"
 ```
@@ -39,15 +43,29 @@ config_dir: "./hooks"
 
 控制基础路由 `/webhook` 是否遍历所有 YAML 配置文件。
 
-- `true`（默认）— 请求 `/webhook` 时遍历所有配置文件
-- `false` — 请求 `/webhook` 返回 400，必须使用 `/webhook/{filename}` 定向路由
+- `true` — 请求 `/webhook` 时遍历所有配置文件，匹配第一个规则后停止
+- `false`（默认）— 请求 `/webhook` 返回 400，必须使用 `/webhook/{filename}` 定向路由
 
-### `server.first_match_only`
+### `log.mode`
 
-控制基础路由的匹配行为（仅当 `allow_all: true` 时生效）。
+控制日志文件的生成方式。
 
-- `true`（默认）— 跨所有配置匹配第一个命中的规则后停止
-- `false` — 跨所有配置执行所有命中的规则
+| 模式 | 行为 | 文件命名 |
+|------|------|----------|
+| `daily`（默认） | 每天一个文件，自动清理过期日志 | `hookrun-2026-06-11.log` |
+| `single` | 固定一个文件，可按大小轮转 | `hookrun.log` |
+
+**Daily 模式**适合长期运行的服务，配合 `retention_days` 自动清理。
+
+**Single 模式**适合容器环境（Docker/Kubernetes）或使用外部工具（logrotate）管理轮转。`max_size_mb: 0` 表示不限大小。
+
+```yaml
+# 容器友好配置：单文件，不限制
+log:
+  mode: "single"
+  path: "./logs"
+  # max_size_mb: 0  （不限，交给 Docker 处理轮转）
+```
 
 ---
 
@@ -62,6 +80,8 @@ config_dir: "./hooks"
 | `name` | string | 是 | 规则集名称，用于日志和响应 |
 | `auth` | object | 否 | 认证设置（AND 关系） |
 | `execution` | object | 否 | 文件级执行策略 |
+| `filters` | array | 否 | 文件级全局过滤条件（与规则级 AND 组合） |
+| `log` | object | 否 | 规则级独立日志文件（与全局双写） |
 | `rules` | array | 是 | 规则列表（至少一个） |
 
 ---
@@ -172,7 +192,65 @@ rules:
 
 ---
 
-### 2.3 `rules` — 规则列表
+### 2.3 `filters` — 文件级过滤条件
+
+文件级 filters 作为**全局约束**，应用于该文件下的所有规则。与规则级 filters 为 **AND** 关系：两者必须同时匹配才能执行规则。
+
+如果文件级 filters 不匹配，**所有规则都会被跳过**（短路）— 不会逐条评估。
+
+无任何 filter 的规则（文件级和规则级都为空）为 **catch-all** — 匹配所有到达它的请求。在 first-match-wins 的链式匹配中，将 catch-all 规则放在末尾作为兆底。
+
+```yaml
+# 文件级：所有规则的公共约束
+filters:
+  - type: "header"
+    key: "X-GitHub-Event"
+    operator: "eq"
+    value: "push"
+
+rules:
+  - name: "deploy-main"
+    filters:                         # 与文件级 AND 组合
+      - type: "body"
+        key: "ref"
+        operator: "eq"
+        value: "refs/heads/main"
+    actions: [...]
+
+  - name: "notify-all"
+    # 无规则级 filters — 只要文件级 filters 通过就执行
+    actions: [...]
+```
+
+过滤字段的定义、类型和操作符与规则级 filters 相同（见 2.4 节）。
+
+---
+
+### 2.3.5 `log` — 规则级日志
+
+每个规则配置文件可以指定独立的日志文件。日志会**双写**到全局日志和规则专属日志（类似 nginx 的 `access_log`）。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `path` | string | 是 | 完整日志文件路径（如 `./logs/deploy.log`） |
+
+文件命名跟随全局 `log.mode`：
+
+| 模式 | log.path | 生成文件 |
+|------|----------|----------|
+| `daily` | `./logs/deploy.log` | `./logs/deploy-2026-06-11.log` |
+| `single` | `./logs/deploy.log` | `./logs/deploy.log` |
+
+```yaml
+log:
+  path: "./logs/deploy.log"
+```
+
+规则级日志继承全局的 `retention_days` 和 `max_size_mb` 设置。
+
+---
+
+### 2.4 `rules` — 规则列表
 
 每条规则包含名称、过滤条件和动作。
 
@@ -180,14 +258,14 @@ rules:
 |------|------|------|------|
 | `name` | string | 是 | 规则名称，用于日志和响应 |
 | `execution` | object | 否 | 规则级执行策略（覆盖文件级） |
-| `filters` | array | 是 | 匹配条件（AND 关系，至少一个） |
+| `filters` | array | 否 | 匹配条件（AND 关系；为空则匹配所有请求） |
 | `actions` | array | 是 | 要执行的命令/脚本（至少一个） |
 
 ---
 
-### 2.4 `filters` — 过滤条件
+### 2.5 `filters` — 规则级过滤条件
 
-同一规则内多个 filter 为 **AND** 关系 — 必须全部匹配。
+同一规则内多个 filter 为 **AND** 关系 — 必须全部匹配。与文件级 filters（如有）同样为 AND 组合。
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -228,7 +306,7 @@ rules:
 
 ---
 
-### 2.5 `actions` — 执行动作
+### 2.6 `actions` — 执行动作
 
 动作按定义顺序**依次执行**。
 
@@ -342,13 +420,16 @@ auth:
 execution:
   policy: "block"
 
+# 文件级过滤条件：所有规则的全局约束
+filters:
+  - type: "header"
+    key: "X-GitHub-Event"
+    operator: "eq"
+    value: "push"
+
 rules:
   - name: "push-to-main"
-    filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
+    filters:   # 与文件级 AND 组合
       - type: "body"
         key: "ref"
         operator: "eq"
@@ -369,10 +450,6 @@ rules:
     execution:
       policy: "always"
     filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
       - type: "body"
         key: "ref"
         operator: "regex"
@@ -384,4 +461,8 @@ rules:
           - source: "body"
             key: "ref"
         timeout: 10
+
+# 规则级独立日志（双写：全局 + 此文件）
+log:
+  path: "./logs/github-auto-deploy.log"
 ```

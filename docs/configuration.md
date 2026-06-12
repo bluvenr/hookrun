@@ -1,5 +1,7 @@
 # Configuration Reference
 
+[中文](configuration_zh.md)
+
 HookRun uses two levels of YAML configuration:
 
 1. **Global Config** (`config.yaml`) — Server, logging, and directory settings
@@ -13,10 +15,11 @@ HookRun uses two levels of YAML configuration:
 |-------|------|---------|-------------|
 | `server.port` | int | `9000` | HTTP listen port (1–65535) |
 | `server.route` | string | `/webhook` | Base webhook endpoint path |
-| `server.allow_all` | bool | `true` | Allow base route (`/webhook`) to iterate all config files |
-| `server.first_match_only` | bool | `true` | Stop at first matching rule (only effective when `allow_all: true`) |
-| `log.path` | string | `./logs` | Log file directory |
-| `log.retention_days` | int | `30` | Number of days to retain log files |
+| `server.allow_all` | bool | `false` | Allow base route (`/webhook`) to iterate all config files |
+| `log.mode` | string | `daily` | Log mode: `"daily"` (rotate by day) or `"single"` (one file) |
+| `log.path` | string | `./logs` | Log directory (daily) or base path (single) |
+| `log.retention_days` | int | `30` | Days to retain daily log files |
+| `log.max_size_mb` | int | `0` (unlimited) | Max file size in MB before rotation (single mode only) |
 | `config_dir` | string | `./hooks` | Directory containing rule YAML files |
 
 ### Example
@@ -25,12 +28,13 @@ HookRun uses two levels of YAML configuration:
 server:
   port: 9000
   route: "/webhook"
-  allow_all: true
-  first_match_only: true
+  allow_all: false
 
 log:
+  mode: "daily"                # "daily" (default) | "single"
   path: "./logs"
-  retention_days: 30
+  retention_days: 30           # only for daily mode
+  # max_size_mb: 0             # only for single mode, 0 = unlimited (default)
 
 config_dir: "./hooks"
 ```
@@ -39,15 +43,29 @@ config_dir: "./hooks"
 
 Controls whether the base route `/webhook` iterates through all YAML config files.
 
-- `true` (default) — Requests to `/webhook` iterate all config files
-- `false` — Requests to `/webhook` return 400; clients must use `/webhook/{filename}`
+- `true` — Requests to `/webhook` iterate all config files, stopping at the first matching rule
+- `false` (default) — Requests to `/webhook` return 400; clients must use `/webhook/{filename}`
 
-### `server.first_match_only`
+### `log.mode`
 
-Controls matching behavior for the base route (only effective when `allow_all: true`).
+Controls how log files are generated.
 
-- `true` (default) — Execute the first matching rule across all configs, then stop
-- `false` — Execute ALL matching rules across all configs
+| Mode | Behavior | File Naming |
+|------|----------|-------------|
+| `daily` (default) | One file per day, auto-cleanup | `hookrun-2026-06-11.log` |
+| `single` | One fixed file, optional size rotation | `hookrun.log` |
+
+**Daily mode** is suitable for long-running services with `retention_days` auto-cleanup.
+
+**Single mode** is suitable for container environments (Docker/Kubernetes) or when external tools handle rotation. `max_size_mb: 0` means no size rotation (unlimited).
+
+```yaml
+# Container-friendly: single file, no rotation
+log:
+  mode: "single"
+  path: "./logs"
+  # max_size_mb: 0  (unlimited, let Docker handle rotation)
+```
 
 ---
 
@@ -62,6 +80,8 @@ Each YAML file in `config_dir` defines a rule set. The **filename** (without `.y
 | `name` | string | Yes | Rule set name, used in logs and responses |
 | `auth` | object | No | Authentication settings (AND relationship) |
 | `execution` | object | No | File-level execution policy |
+| `filters` | array | No | File-level global filters (AND with rule-level) |
+| `log` | object | No | Rule-level independent log file (dual-write with global) |
 | `rules` | array | Yes | List of rules (at least one required) |
 
 ---
@@ -172,7 +192,65 @@ Priority: **Rule-level > File-level > Default (block)**
 
 ---
 
-### 2.3 `rules` — Rule List
+### 2.3 `filters` — File-Level Filters
+
+File-level filters act as **global constraints** applied to ALL rules in the config. They use **AND** logic with rule-level filters: both must match for a rule to execute.
+
+If file-level filters fail, **all rules are skipped** (short-circuit) — no individual rule is evaluated.
+
+A rule with no filters (at either level) acts as a **catch-all** — it matches every request that reaches it. In a first-match-wins chain, place catch-all rules last as fallbacks.
+
+```yaml
+# File-level: common constraint for all rules
+filters:
+  - type: "header"
+    key: "X-GitHub-Event"
+    operator: "eq"
+    value: "push"
+
+rules:
+  - name: "deploy-main"
+    filters:                         # AND with file-level
+      - type: "body"
+        key: "ref"
+        operator: "eq"
+        value: "refs/heads/main"
+    actions: [...]
+
+  - name: "notify-all"
+    # No rule-level filters — matches whenever file-level filters pass
+    actions: [...]
+```
+
+Filter field definitions, types, and operators are the same as rule-level filters (see section 2.4).
+
+---
+
+### 2.3.5 `log` — Rule-Level Log
+
+Each rule config file can specify an independent log file. Logs are **dual-written** to both the global log and the rule-specific log (similar to nginx `access_log`).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | Yes | Full log file path (e.g. `./logs/deploy.log`) |
+
+File naming follows the global `log.mode`:
+
+| Mode | log.path | Generated File |
+|------|----------|----------------|
+| `daily` | `./logs/deploy.log` | `./logs/deploy-2026-06-11.log` |
+| `single` | `./logs/deploy.log` | `./logs/deploy.log` |
+
+```yaml
+log:
+  path: "./logs/deploy.log"
+```
+
+Rule-level loggers inherit `retention_days` and `max_size_mb` from global settings.
+
+---
+
+### 2.4 `rules` — Rule List
 
 Each rule has a name, filters, and actions.
 
@@ -180,14 +258,14 @@ Each rule has a name, filters, and actions.
 |-------|------|----------|-------------|
 | `name` | string | Yes | Rule name, used in logs and responses |
 | `execution` | object | No | Rule-level execution policy (overrides file-level) |
-| `filters` | array | Yes | Matching conditions (AND relationship, at least one) |
+| `filters` | array | No | Matching conditions (AND relationship; empty = catch-all) |
 | `actions` | array | Yes | Commands/scripts to execute (at least one) |
 
 ---
 
-### 2.4 `filters` — Matching Conditions
+### 2.5 `filters` — Rule-Level Matching Conditions
 
-Multiple filters within a rule use **AND** relationship — all must match.
+Multiple filters within a rule use **AND** relationship — all must match. Combined with file-level filters (if any) via AND.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -228,7 +306,7 @@ Supports dot notation and array indexing:
 
 ---
 
-### 2.5 `actions` — Actions to Execute
+### 2.6 `actions` — Actions to Execute
 
 Actions execute **sequentially** in the order defined.
 
@@ -342,13 +420,16 @@ auth:
 execution:
   policy: "block"
 
+# File-level filters: global constraints for ALL rules
+filters:
+  - type: "header"
+    key: "X-GitHub-Event"
+    operator: "eq"
+    value: "push"
+
 rules:
   - name: "push-to-main"
-    filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
+    filters:   # AND with file-level
       - type: "body"
         key: "ref"
         operator: "eq"
@@ -369,10 +450,6 @@ rules:
     execution:
       policy: "always"
     filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
       - type: "body"
         key: "ref"
         operator: "regex"
@@ -384,4 +461,8 @@ rules:
           - source: "body"
             key: "ref"
         timeout: 10
+
+# Rule-level independent log (dual-write: global + this file)
+log:
+  path: "./logs/github-auto-deploy.log"
 ```

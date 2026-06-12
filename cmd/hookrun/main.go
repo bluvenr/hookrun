@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	Version    = "1.1.0"
+	Version    = "1.1.1"
 	BuildTime  = "unknown"
 	configPath string
 	foreground bool
@@ -85,7 +85,15 @@ func runServer() error {
 	cfg := configMgr.Global()
 
 	// Init logger
-	log := logger.New(cfg.Log.Path, cfg.Log.RetentionDays)
+	log := logger.New(logger.Options{
+		Mode:          cfg.Log.Mode,
+		Prefix:        "hookrun",
+		Path:          cfg.Log.Path,
+		RetentionDays: cfg.Log.RetentionDays,
+		MaxSizeMB:     cfg.Log.MaxSizeMB,
+		MinLevel:      logger.LevelInfo,
+		Console:       true,
+	})
 	defer log.Close()
 
 	// Write PID and status
@@ -99,7 +107,7 @@ func runServer() error {
 	}
 
 	// Init engine
-	eng := engine.New(configMgr.Rules(), log)
+	eng := engine.New(configMgr.Rules(), log, cfg.Log.Mode, cfg.Log.RetentionDays, cfg.Log.MaxSizeMB)
 
 	// Start signal file watcher (for Windows IPC)
 	go watchSignalFiles(eng, configMgr, log)
@@ -121,6 +129,7 @@ func watchSignalFiles(eng *engine.Engine, configMgr *config.Manager, log *logger
 			if err := configMgr.Reload(); err != nil {
 				log.Error("Reload failed: %v", err)
 			} else {
+				eng.CloseRuleLoggers() // close old rule-level loggers
 				eng.UpdateConfigs(configMgr.Rules())
 				log.Info("Reload successful, loaded %d rule(s)", configMgr.RuleCount())
 			}
@@ -384,9 +393,16 @@ func validateCmd() *cobra.Command {
 			fmt.Printf("  Server port: %d\n", cfg.Server.Port)
 			fmt.Printf("  Webhook route: %s\n", cfg.Server.Route)
 			fmt.Printf("  Allow all: %v\n", cfg.Server.IsAllowAll())
-			fmt.Printf("  First match only: %v\n", cfg.Server.IsFirstMatchOnly())
+			fmt.Printf("  Log mode: %s\n", cfg.Log.Mode)
 			fmt.Printf("  Log path: %s\n", cfg.Log.Path)
 			fmt.Printf("  Log retention: %d days\n", cfg.Log.RetentionDays)
+			if cfg.Log.Mode == "single" {
+				if cfg.Log.MaxSizeMB > 0 {
+					fmt.Printf("  Log max size: %d MB\n", cfg.Log.MaxSizeMB)
+				} else {
+					fmt.Printf("  Log max size: unlimited\n")
+				}
+			}
 			fmt.Printf("  Config dir: %s\n", cfg.ConfigDir)
 			fmt.Printf("  Rule files loaded: %d\n", configMgr.RuleCount())
 
@@ -410,6 +426,9 @@ func validateCmd() *cobra.Command {
 					}
 					if len(authTypes) > 0 {
 						fmt.Printf(" [auth: %s]", strings.Join(authTypes, "+"))
+					}
+					if r.Log != nil && r.Log.Path != "" {
+						fmt.Printf(" [log: %s]", r.Log.Path)
 					}
 				}
 				fmt.Println()

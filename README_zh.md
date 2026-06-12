@@ -18,8 +18,8 @@ Validating config: config.yaml
 PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
-  Allow all: true
-  First match only: true
+  Allow all: false
+  Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
@@ -53,10 +53,10 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **多条件过滤** — 支持 Header / Query / Body 匹配，操作符：`eq` `ne` `contains` `regex`
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
 - **策略继承** — 文件级 → Rule 级逐层覆盖
-- **匹配可控** — `first_match_only` 开关控制匹配即停或全量执行
+- **文件级 Filters** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
 - **参数传递** — 模板变量（`{{.body.ref}}`）和 `pass_args` 将请求数据注入命令
 - **热重载** — 运行中 reload 配置，无需重启服务
-- **日志管理** — 按日切割、自动清理过期日志
+- **日志管理** — Daily/Single 双模式，自动清理，支持规则级独立日志
 
 ## 文档
 
@@ -65,14 +65,6 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 | [配置参数说明](docs/configuration_zh.md) | 所有配置字段的完整参数参考 |
 | [使用指南](docs/usage_zh.md) | CLI 命令、路由、响应格式和常见场景 |
 | [部署说明](docs/deployment_zh.md) | 构建、systemd、Docker、Windows 及反向代理部署 |
-
-[English Docs](../docs/)
-
-| Document | Description |
-|----------|-------------|
-| [Configuration Reference](docs/configuration.md) | Complete parameter reference for all config fields |
-| [Usage Guide](docs/usage.md) | CLI commands, routing, response formats, and common scenarios |
-| [Deployment Guide](docs/deployment.md) | Build, systemd, Docker, Windows, and reverse proxy setup |
 
 ## 快速开始
 
@@ -93,12 +85,12 @@ go build -o hookrun ./cmd/hookrun/
 server:
   port: 9000
   route: "/webhook"
-  allow_all: true              # 是否允许基础路由遍历所有配置
-  first_match_only: true       # 匹配第一个规则后停止
+  allow_all: false             # 是否允许基础路由遍历所有配置（默认 false）
 
 log:
+  mode: "daily"                # "daily"（默认）| "single"
   path: "./logs"
-  retention_days: 30
+  retention_days: 30           # 仅 daily 模式
 
 config_dir: "./hooks"          # 规则 YAML 文件目录
 ```
@@ -159,7 +151,7 @@ hookrun start -f
 | 请求路径 | 行为 |
 |----------|------|
 | `/webhook/my-app` | 直接定位 `hooks/my-app.yaml`，匹配第一个 rule 执行 |
-| `/webhook` | 遍历所有 yaml（受 `allow_all` 和 `first_match_only` 控制） |
+| `/webhook` | 遍历所有 yaml，匹配第一个规则后停止（受 `allow_all` 控制） |
 
 ## CLI 命令
 

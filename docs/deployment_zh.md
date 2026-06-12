@@ -1,5 +1,7 @@
 # 部署说明
 
+[English](deployment.md)
+
 本指南介绍如何在生产环境中构建、部署和运行 HookRun。
 
 ---

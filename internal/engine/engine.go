@@ -46,19 +46,29 @@ type RequestData struct {
 type Engine struct {
 	mu      sync.RWMutex
 	configs []*config.RuleConfig
-	logger  *logger.Logger
+	logger  logger.LogWriter
+	// Global log settings for creating rule-level loggers
+	logMode      string
+	logRetention int
+	logMaxSizeMB int
+	// Rule-level logger cache (config name -> logger)
+	ruleLoggers map[string]*logger.Logger
 	// Execution state tracking
 	running map[string]bool      // configName/ruleName -> running
 	lastRun map[string]time.Time // configName/ruleName -> last start time
 }
 
 // New creates a new Engine instance.
-func New(configs []*config.RuleConfig, log *logger.Logger) *Engine {
+func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, logRetention int, logMaxSizeMB int) *Engine {
 	return &Engine{
-		configs: configs,
-		logger:  log,
-		running: make(map[string]bool),
-		lastRun: make(map[string]time.Time),
+		configs:      configs,
+		logger:       log,
+		logMode:      logMode,
+		logRetention: logRetention,
+		logMaxSizeMB: logMaxSizeMB,
+		ruleLoggers:  make(map[string]*logger.Logger),
+		running:      make(map[string]bool),
+		lastRun:      make(map[string]time.Time),
 	}
 }
 
@@ -67,6 +77,31 @@ func (e *Engine) UpdateConfigs(configs []*config.RuleConfig) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.configs = configs
+}
+
+// getRuleLogger returns (or creates) a rule-level logger for the given config.
+func (e *Engine) getRuleLogger(cfg *config.RuleConfig) logger.LogWriter {
+	if cfg.Log == nil || cfg.Log.Path == "" {
+		return nil
+	}
+
+	// Check cache
+	if rl, ok := e.ruleLoggers[cfg.Name]; ok {
+		return logger.NewMulti(e.logger, rl)
+	}
+
+	// Create new rule-level logger
+	rl := logger.NewRuleLogger(cfg.Log.Path, e.logMode, e.logRetention, e.logMaxSizeMB)
+	e.ruleLoggers[cfg.Name] = rl
+	return logger.NewMulti(e.logger, rl)
+}
+
+// CloseRuleLoggers closes all rule-level loggers.
+func (e *Engine) CloseRuleLoggers() {
+	for _, rl := range e.ruleLoggers {
+		rl.Close()
+	}
+	e.ruleLoggers = make(map[string]*logger.Logger)
 }
 
 // Process handles an incoming webhook request by iterating all configs.
@@ -103,82 +138,19 @@ func (e *Engine) ProcessTargeted(cfg *config.RuleConfig, req *RequestData) []Res
 	}}
 }
 
-// ProcessAll iterates all configs and executes ALL matching rules (not just first match).
-func (e *Engine) ProcessAll(req *RequestData) []Response {
-	e.mu.RLock()
-	configs := make([]*config.RuleConfig, len(e.configs))
-	copy(configs, e.configs)
-	e.mu.RUnlock()
-
-	var responses []Response
-	for _, cfg := range configs {
-		resp := e.processConfigAll(cfg, req)
-		responses = append(responses, resp...)
-	}
-
-	if len(responses) == 0 {
-		responses = append(responses, Response{
-			Code:    200,
-			Message: "No matching rules",
-		})
-	}
-	return responses
-}
-
-// processConfigAll processes a single config, executing ALL matching rules.
-func (e *Engine) processConfigAll(cfg *config.RuleConfig, req *RequestData) []Response {
-	// Auth check
-	if cfg.Auth != nil {
-		if !e.checkAuth(cfg.Auth, req) {
-			e.logger.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
-			return []Response{{
-				Code:    401,
-				Message: "Authentication failed",
-				Config:  cfg.Name,
-			}}
-		}
-	}
-
-	var responses []Response
-	for _, rule := range cfg.Rules {
-		if !e.matchFilters(rule.Filters, req) {
-			continue
-		}
-
-		taskKey := cfg.Name + "/" + rule.Name
-		policy := e.resolvePolicy(cfg.Execution, rule.Execution)
-
-		if blocked := e.checkPolicy(taskKey, policy); blocked != nil {
-			blocked.Config = cfg.Name
-			blocked.Rule = rule.Name
-			e.logger.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
-			responses = append(responses, *blocked)
-			continue
-		}
-
-		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
-		e.markRunning(taskKey)
-		actionCount := e.executeActions(taskKey, rule.Actions, req)
-		e.markDone(taskKey)
-
-		responses = append(responses, Response{
-			Code:    200,
-			Message: "ok",
-			Config:  cfg.Name,
-			Rule:    rule.Name,
-			Actions: actionCount,
-		})
-	}
-	return responses
-}
-
 // processConfig processes a single rule config file against the request.
 // Returns on first matching rule (first match wins).
 func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Response {
+	// Use rule-level dual-write logger if configured, otherwise global logger
+	log := e.logger
+	if ruleLog := e.getRuleLogger(cfg); ruleLog != nil {
+		log = ruleLog
+	}
+
 	// Step 1: Auth check (AND relationship)
 	if cfg.Auth != nil {
 		if !e.checkAuth(cfg.Auth, req) {
-			e.logger.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
+			log.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
 			return []Response{{
 				Code:    401,
 				Message: "Authentication failed",
@@ -187,8 +159,13 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 		}
 	}
 
+	// Step 1.5: Check file-level filters (AND with rule-level, short-circuit)
+	if len(cfg.Filters) > 0 && !e.matchFilters(cfg.Filters, req) {
+		return nil // file-level filters failed, skip all rules in this config
+	}
+
 	for _, rule := range cfg.Rules {
-		// Step 2: Match filters (AND relationship)
+		// Step 2: Match rule-level filters (AND relationship, empty = catch-all)
 		if !e.matchFilters(rule.Filters, req) {
 			continue
 		}
@@ -200,14 +177,14 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 		if blocked := e.checkPolicy(taskKey, policy); blocked != nil {
 			blocked.Config = cfg.Name
 			blocked.Rule = rule.Name
-			e.logger.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
+			log.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
 			return []Response{*blocked}
 		}
 
 		// Step 4: Execute actions
-		e.logger.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
+		log.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
 		e.markRunning(taskKey)
-		actionCount := e.executeActions(taskKey, rule.Actions, req)
+		actionCount := e.executeActions(taskKey, rule.Actions, req, log)
 		e.markDone(taskKey)
 
 		return []Response{{
@@ -521,7 +498,7 @@ func (e *Engine) markDone(taskKey string) {
 
 // executeActions runs all actions for a rule sequentially.
 // Returns the number of successfully completed actions.
-func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData) int {
+func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData, log logger.LogWriter) int {
 	completed := 0
 
 	for i, action := range actions {
@@ -533,7 +510,7 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
 		}
 
-		e.logger.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
+		log.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
 
 		var result *executor.ActionResult
 		switch action.Type {
@@ -542,28 +519,28 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 		case "script":
 			result = executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
 		default:
-			e.logger.Error("[%s] Unknown action type: %s", taskKey, action.Type)
+			log.Error("[%s] Unknown action type: %s", taskKey, action.Type)
 			continue
 		}
 
 		// Log result
 		if result.Success() {
-			e.logger.Info("[%s] Action %d/%d completed in %v", taskKey, i+1, len(actions), result.Duration)
+			log.Info("[%s] Action %d/%d completed in %v", taskKey, i+1, len(actions), result.Duration)
 			completed++
 		} else {
-			e.logger.Error("[%s] Action %d/%d failed (code=%d, duration=%v): %v",
+			log.Error("[%s] Action %d/%d failed (code=%d, duration=%v): %v",
 				taskKey, i+1, len(actions), result.ExitCode, result.Duration, result.Error)
 			if result.Stderr != "" {
-				e.logger.Error("[%s] stderr: %s", taskKey, result.Stderr)
+				log.Error("[%s] stderr: %s", taskKey, result.Stderr)
 			}
 			if !action.ContinueOnError {
-				e.logger.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
+				log.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
 				break
 			}
 		}
 
 		if result.Stdout != "" {
-			e.logger.Debug("[%s] stdout: %s", taskKey, result.Stdout)
+			log.Debug("[%s] stdout: %s", taskKey, result.Stdout)
 		}
 	}
 

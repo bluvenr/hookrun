@@ -18,8 +18,8 @@ Validating config: config.yaml
 PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
-  Allow all: true
-  First match only: true
+  Allow all: false
+  Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
@@ -53,10 +53,10 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Multi-Condition Filters** — Match against Header / Query / Body with operators: `eq` `ne` `contains` `regex`
 - **Execution Policies** — Three modes: `block` (prevent concurrency), `always` (always execute), `cooldown` (rate limiting)
 - **Policy Inheritance** — File-level → Rule-level override
-- **Matching Control** — `first_match_only` toggle for first-match-stops vs execute-all
+- **File-Level Filters** — Global constraints applied to all rules, AND with rule-level filters
 - **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands
 - **Hot Reload** — Reload configs at runtime without restarting
-- **Log Management** — Daily rotation with automatic cleanup
+- **Log Management** — Daily/single mode with auto-cleanup, per-rule independent log files
 
 ## Documentation
 
@@ -65,18 +65,6 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 | [Configuration Reference](docs/configuration.md) | Complete parameter reference for all config fields |
 | [Usage Guide](docs/usage.md) | CLI commands, routing, response formats, and common scenarios |
 | [Deployment Guide](docs/deployment.md) | Build, systemd, Docker, Windows, and reverse proxy setup |
-
-[中文版文档](#中文文档)
-
-<a id="中文文档"></a>
-
-## 中文文档
-
-| 文档 | 说明 |
-|------|------|
-| [配置参数说明](docs/configuration_zh.md) | 所有配置字段的完整参数参考 |
-| [使用指南](docs/usage_zh.md) | CLI 命令、路由、响应格式和常见场景 |
-| [部署说明](docs/deployment_zh.md) | 构建、systemd、Docker、Windows 及反向代理部署 |
 
 ## Quick Start
 
@@ -97,12 +85,12 @@ go build -o hookrun ./cmd/hookrun/
 server:
   port: 9000
   route: "/webhook"
-  allow_all: true              # allow base route to iterate all configs
-  first_match_only: true       # stop at first matching rule
+  allow_all: false             # require targeted routing (default: false)
 
 log:
+  mode: "daily"                # "daily" (default) | "single"
   path: "./logs"
-  retention_days: 30
+  retention_days: 30           # only for daily mode
 
 config_dir: "./hooks"          # rule YAML files directory
 ```
@@ -163,7 +151,7 @@ hookrun start -f
 | URL Pattern | Behavior |
 |-------------|----------|
 | `/webhook/my-app` | Directly route to `hooks/my-app.yaml`, execute first matching rule |
-| `/webhook` | Iterate all configs (controlled by `allow_all` and `first_match_only`) |
+| `/webhook` | Iterate all configs, stop at first matching rule (controlled by `allow_all`) |
 
 ## CLI Commands
 

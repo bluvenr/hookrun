@@ -1,5 +1,7 @@
 # Deployment Guide
 
+[中文](deployment_zh.md)
+
 This guide covers building, deploying, and running HookRun in production environments.
 
 ---

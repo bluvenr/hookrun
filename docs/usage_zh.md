@@ -1,5 +1,7 @@
 # 使用指南
 
+[English](usage.md)
+
 本指南介绍 HookRun 的日常使用：CLI 命令、路由行为、响应格式和常见场景。
 
 ---
@@ -107,8 +109,8 @@ Validating config: config.yaml
 PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
-  Allow all: true
-  First match only: true
+  Allow all: false
+  Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
@@ -156,13 +158,12 @@ POST /webhook/my-app
 
 ### 基础路由：`/webhook`
 
-行为受 `allow_all` 和 `first_match_only` 控制：
+行为受 `allow_all` 控制：
 
-| `allow_all` | `first_match_only` | 行为 |
-|-------------|-------------------|------|
-| `true`（默认） | `true`（默认） | 遍历所有配置，匹配第一个规则后停止 |
-| `true` | `false` | 遍历所有配置，执行所有匹配的规则 |
-| `false` | — | 返回 400 错误（必须使用定向路由） |
+| `allow_all` | 行为 |
+|-------------|------|
+| `true` | 遍历所有配置，匹配第一个规则后停止 |
+| `false`（默认） | 返回 400 错误（必须使用定向路由） |
 
 ### 路由匹配示例
 
@@ -263,17 +264,6 @@ GET /health
   "code": 400,
   "message": "Base route iteration is disabled, please specify target: /webhook/{name}"
 }
-```
-
-### 多响应
-
-当 `first_match_only: false` 时，响应为数组：
-
-```json
-[
-  {"code": 200, "message": "ok", "config": "app-a", "rule": "deploy", "actions": 2},
-  {"code": 200, "message": "ok", "config": "app-b", "rule": "sync", "actions": 1}
-]
 ```
 
 ---
@@ -416,10 +406,24 @@ POST /webhook/api
 
 ## 5. 日志
 
+### Daily 模式（默认）
+
 - 日志写入 `{log.path}/hookrun-YYYY-MM-DD.log`
 - 每天创建新文件
 - 启动时自动删除超过 `retention_days` 的过期日志
-- 每次 Webhook 请求和执行结果都带时间戳记录
+
+### Single 模式
+
+- 日志写入 `{log.path}/hookrun.log`
+- 固定单文件，可按大小轮转（`max_size_mb`）
+- 适合容器环境或外部日志管理
+
+### 规则级日志
+
+- 每个规则配置可指定 `log.path` 写入独立日志文件
+- 日志双写到全局日志和规则专属日志
+
+每次 Webhook 请求和执行结果都带时间戳记录。
 
 ---
 

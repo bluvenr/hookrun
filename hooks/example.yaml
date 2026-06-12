@@ -20,13 +20,21 @@ execution:
   policy: "block"                # "block" | "always" | "cooldown"
   # cooldown_seconds: 300        # only for "cooldown" policy
 
+# Rule-level independent log file (dual-write: global + this file)
+# log:
+#   path: "./logs/github-auto-deploy.log"
+
+# File-level filters: global constraints applied to ALL rules (AND with rule-level)
+filters:
+  - type: "header"
+    key: "X-GitHub-Event"
+    operator: "eq"
+    value: "push"
+
 rules:
   - name: "push-to-main"
+    # Rule-level filters: combined with file-level via AND
     filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
       - type: "body"
         key: "ref"
         operator: "eq"
@@ -47,10 +55,6 @@ rules:
     execution:
       policy: "always"           # override: allow concurrent tag releases
     filters:
-      - type: "header"
-        key: "X-GitHub-Event"
-        operator: "eq"
-        value: "push"
       - type: "body"
         key: "ref"
         operator: "regex"
