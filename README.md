@@ -22,14 +22,18 @@ Single binary under 5MB. No database. No container runtime. Cross-platform (Linu
 
 ## Why HookRun?
 
-| | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n / Huginn |
-|---|---------|------|------|
-| **Deploy & Deps** | Single binary <5MB, zero deps | Single binary ~2MB, zero deps | Docker + DB + Node.js/Ruby |
-| **Config Format** | YAML (readable, comments supported) | JSON (no comments, widely requested) | Visual editor / JSON |
-| **Execution Policy** | block / always / cooldown | No policy, always triggers | Partial support |
-| **Hot Reload** | File-watch auto reload | Restart / SIGHUP | Restart required |
-| **Routing** | `/webhook/{filename}` targeted | `/hooks/{id}` flat | Workflow engine |
-| **Authentication** | Token + HMAC + IP whitelist | Token + HMAC | OAuth primarily |
+A purpose-built action engine for webhook automation, compared with general-purpose tools:
+
+| | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n | Huginn |
+|---|---------|------|------|------|
+| **Execution Policy** | block / always / cooldown — 3 modes | No concurrency control, always triggers | Partial (retry / wait) | Scenario-based triggers |
+| **Authentication** | Token + HMAC + IP whitelist, top-level auth, AND-combined | Token + HMAC, nested in trigger-rule, scattered config | Basic / Header / JWT / IP whitelist | Devise user auth + OAuth services |
+| **Binary Size** | Single file ~3MB, zero deps | Single file ~7MB, zero deps | Docker + SQLite (default) / PostgreSQL | Docker + MySQL / PostgreSQL |
+| **Hot Reload** | Auto-watches directory, zero-config | `-hotreload` flag, specified files only | Restart required | Restart required |
+| **Routing** | `/webhook/{filename}` targeted, on-demand | `/hooks/{id}` flat, single entry | Workflow engine | Scenario graph (agent links) |
+| **Process Mgmt** | Built-in CLI daemon (start/stop/status) | Requires external systemd, etc. | Docker container management | Docker container management |
+| **Config Format** | YAML (readable, comments supported) | JSON / YAML | Visual editor / JSON | JSON (agent config) |
+| **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
 - **Lightweight** — One binary, under 5MB, zero dependencies. No database, no container runtime. `scp` it to your server and run — minimal resources required
