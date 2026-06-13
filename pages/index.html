@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation</title>
-  <meta name="description" content="HookRun is a lightweight webhook action engine that executes custom commands and scripts based on YAML rules. Single binary, cross-platform (Linux, macOS, Windows), open source under MIT.">
-  <meta name="keywords" content="webhook, webhook automation, YAML, git auto deploy, CI/CD, webhook action engine, Go, single binary, open source, self-hosted">
+  <meta name="description" content="HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands and scripts based on YAML rules when webhook requests arrive. Token/HMAC/IP auth, hot reload, cross-platform. Open source under MIT.">
+  <meta name="keywords" content="webhook, webhook automation, hookrun, YAML, git auto deploy, CI/CD, webhook action engine, Go, single binary, open source, self-hosted">
   <meta name="author" content="bluvenr">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://bluvenr.github.io/hookrun/">
@@ -15,7 +15,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://bluvenr.github.io/hookrun/">
   <meta property="og:title" content="HookRun - Lightweight Webhook Action Engine">
-  <meta property="og:description" content="Execute custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source under MIT.">
+  <meta property="og:description" content="Lightweight webhook engine (~3MB, zero deps) that executes commands based on YAML rules. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.">
   <meta property="og:site_name" content="HookRun">
   <meta property="og:locale" content="en_US">
   <meta property="og:locale:alternate" content="zh_CN">
@@ -23,7 +23,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="HookRun - Lightweight Webhook Action Engine">
-  <meta name="twitter:description" content="Execute custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.">
+  <meta name="twitter:description" content="~3MB webhook engine that auto-executes commands from YAML rules. Token/HMAC/IP auth, hot reload, zero deps. Cross-platform, MIT license.">
 
   <!-- Hreflang -->
   <link rel="alternate" hreflang="en" href="https://bluvenr.github.io/hookrun/">
@@ -47,9 +47,60 @@
   }
   </script>
 
+  <!-- FAQ Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How does HookRun compare to adnanh/webhook?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "HookRun is smaller (3MB vs 7MB), has built-in daemon management and directory-watch hot reload, file-based routing, and execution policies (block/always/cooldown). adnanh/webhook requires external process management and has a flat routing model."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why choose HookRun over n8n or Huginn?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "n8n and Huginn are heavy tools requiring Docker, databases, and GB-level deployments. HookRun is a single ~3MB binary with zero dependencies, ideal for webhook-to-action scenarios without container or database overhead."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is HookRun best suited for?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "HookRun excels at Git auto-deploy, CI/CD pipeline triggers, monitoring alert responses, and personal server automation — any scenario where a webhook event should trigger server-side actions."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does HookRun require Docker or a database?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. HookRun is a single static binary with zero runtime dependencies. Just download, write YAML config, and run. No Docker, no database, no container runtime needed."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is HookRun suitable for production use?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. HookRun provides token auth, HMAC signature verification, IP whitelisting, execution policies for concurrency control, built-in health checks, and hot reload — all production-ready features."
+        }
+      }
+    ]
+  }
+  </script>
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>⚡</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" as="style">
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script>
   var _hmt = _hmt || [];
@@ -90,6 +141,8 @@
     .nav-links { display: flex; gap: 28px; }
     .nav-links a { font-size: 14px; color: var(--text-3); font-weight: 400; transition: color .15s; }
     .nav-links a:hover { color: var(--text-1); opacity: 1; }
+    .nav-gh { display: inline-flex; align-items: center; gap: 5px; }
+    .nav-gh svg { flex-shrink: 0; }
     .lang-btn { display: inline-flex; border: 1px solid var(--border-hi); border-radius: var(--r-pill); overflow: hidden; height: 30px; }
     .lang-btn button { padding: 0 12px; height: 100%; border: none; background: transparent; color: var(--text-3); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: all .15s; }
     .lang-btn button:hover { color: var(--text-1); }
@@ -107,6 +160,12 @@
     .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--r-pill); background: rgba(255,255,255,.04); border: 1px solid var(--border); font-size: 12px; color: var(--text-3); transition: border-color .2s, color .2s; white-space: nowrap; }
     .badge:hover { border-color: var(--border-hi); color: var(--text-2); }
     .badge svg { flex-shrink: 0; }
+    .badge-strip a { display: inline-block; }
+    .badge-strip a img { opacity: .85; transition: opacity .15s; }
+    .badge-strip a:hover img { opacity: 1; }
+    .badge-strip img { height: 20px; vertical-align: middle; }
+    .gh-badges { margin-top: 8px; }
+    .gh-badges img { height: 18px; }
     .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
     .badge-accent { border-color: var(--accent-border); }
     .badge-accent .badge-dot { box-shadow: 0 0 6px var(--accent); }
@@ -207,6 +266,37 @@
     .footer-links a { color: var(--text-3); }
     .footer-links a:hover { color: var(--text-2); }
 
+    /* Comparison table */
+    .comp-header { text-align: center; margin-bottom: 32px; }
+    .comp-header p { font-size: 14px; color: var(--text-3); }
+    .comp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .comp-table th, .comp-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    .comp-table th { background: var(--bg-surface); color: var(--text-3); font-weight: 500; font-size: 12px; letter-spacing: .04em; white-space: nowrap; }
+    .comp-table th:nth-child(2) { color: var(--accent); }
+    .comp-table td { color: var(--text-2); vertical-align: top; line-height: 1.5; }
+    .comp-table td:first-child { color: var(--text-1); font-weight: 600; white-space: nowrap; }
+    .comp-table td:nth-child(2) { color: var(--accent); background: rgba(52,211,153,.03); }
+    .comp-table tbody tr:hover td { background: var(--bg-surface); }
+    .comp-table tbody tr:hover td:nth-child(2) { background: rgba(52,211,153,.06); }
+    .comp-table code { font-family: var(--mono); font-size: 12px; padding: 2px 6px; background: rgba(255,255,255,.06); border-radius: 3px; }
+
+    /* FAQ */
+    .faq-list { display: flex; flex-direction: column; gap: 12px; }
+    .faq-item { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-surface); transition: border-color .2s; }
+    .faq-item:hover { border-color: var(--border-hi); }
+    .faq-item summary { padding: 18px 24px; cursor: pointer; font-size: 15px; font-weight: 500; color: var(--text-1); list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: '+'; font-family: var(--mono); font-size: 18px; color: var(--accent); flex-shrink: 0; transition: transform .2s; }
+    .faq-item[open] summary::after { content: '\2212'; }
+    .faq-answer { padding: 0 24px 18px; font-size: 14px; color: var(--text-3); line-height: 1.7; }
+    .faq-answer code { font-family: var(--mono); font-size: 13px; padding: 2px 6px; background: rgba(255,255,255,.06); border-radius: 3px; }
+
+    /* Back to top */
+    .back-to-top { position: fixed; bottom: 28px; right: 28px; width: 42px; height: 42px; border-radius: 50%; background: var(--bg-surface); border: 1px solid var(--border-hi); color: var(--text-2); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; visibility: hidden; transition: opacity .25s, visibility .25s, background .15s; z-index: 50; }
+    .back-to-top.visible { opacity: 1; visibility: visible; }
+    .back-to-top:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
     /* Responsive */
     @media (max-width: 900px) {
       .hero { padding: 56px 0 48px; }
@@ -218,6 +308,8 @@
       .steps, .audience-grid { grid-template-columns: 1fr; }
       .usecases { grid-template-columns: 1fr; }
       .nav-links { display: none; }
+      .comp-table { font-size: 12px; }
+      .comp-table th, .comp-table td { padding: 10px 12px; }
     }
     @media (max-width: 640px) {
       .terminal { display: none; }
@@ -246,7 +338,11 @@
         <a href="#usecases" data-i18n="nav_usecases">Use Cases</a>
         <a href="#why" data-i18n="nav_why">Why HookRun</a>
         <a href="#quickstart" data-i18n="nav_quickstart">Quick Start</a>
-        <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener">GitHub</a>
+        <a href="#faq" data-i18n="nav_faq">FAQ</a>
+        <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener" class="nav-gh">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z"/></svg>
+          GitHub
+        </a>
       </div>
       <div class="lang-btn">
         <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
@@ -288,6 +384,15 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <span data-i18n="badge_perf">High Performance</span>
           </span>
+        </div>
+        <div class="badge-strip gh-badges">
+          <a href="https://github.com/bluvenr/hookrun/releases" target="_blank" rel="noopener"><img src="https://img.shields.io/github/v/release/bluvenr/hookrun?style=flat-square&color=34d399" alt="Release"></a>
+          <a href="https://github.com/bluvenr/hookrun/blob/main/LICENSE" target="_blank" rel="noopener"><img src="https://img.shields.io/github/license/bluvenr/hookrun?style=flat-square&color=34d399" alt="License"></a>
+          <img src="https://img.shields.io/github/go-mod/go-version/bluvenr/hookrun?style=flat-square" alt="Go Version">
+          <a href="https://goreportcard.com/report/github.com/bluvenr/hookrun" target="_blank" rel="noopener"><img src="https://goreportcard.com/badge/github.com/bluvenr/hookrun?style=flat-square" alt="Go Report Card"></a>
+          <!-- <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener"><img src="https://img.shields.io/github/stars/bluvenr/hookrun?style=flat-square" alt="Stars"></a>
+          <a href="https://github.com/bluvenr/hookrun/releases" target="_blank" rel="noopener"><img src="https://img.shields.io/github/downloads/bluvenr/hookrun/total?style=flat-square" alt="Downloads"></a>
+          <img src="https://img.shields.io/github/last-commit/bluvenr/hookrun?style=flat-square" alt="Last Commit"> -->
         </div>
       </div>
       <div class="terminal">
@@ -434,8 +539,94 @@
   </div>
 </section>
 
+<!-- Comparison -->
+<section class="section" id="comparison">
+  <div class="container">
+    <h2 class="section-title" data-i18n="comp_title">HookRun vs Alternatives</h2>
+    <p class="section-desc" data-i18n="comp_desc">Purpose-built for webhook scenarios. See how HookRun stacks up.</p>
+    <div class="comp-scroll">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th data-i18n="comp_h_hookrun">HookRun</th>
+            <th><a href="https://github.com/adnanh/webhook" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">adnanh/webhook</a></th>
+            <th><a href="https://n8n.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">n8n</a></th>
+            <th><a href="https://github.com/huginn/huginn" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">Huginn</a></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-i18n="comp_r_exec">Execution Policy</td>
+            <td data-i18n-html="comp_exec_hr"><code>block</code> / <code>always</code> / <code>cooldown</code> — 3 modes</td>
+            <td data-i18n="comp_exec_wh">No concurrency control</td>
+            <td data-i18n="comp_exec_n8n">Partial (retry / wait)</td>
+            <td data-i18n="comp_exec_hug">Scenario-based triggers</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_auth">Authentication</td>
+            <td data-i18n-html="comp_auth_hr">Token + HMAC + IP whitelist</td>
+            <td data-i18n="comp_auth_wh">Token + HMAC</td>
+            <td data-i18n="comp_auth_n8n">Basic / Header / JWT / IP</td>
+            <td data-i18n="comp_auth_hug">Devise + OAuth</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_deploy">Deploy Size</td>
+            <td data-i18n="comp_deploy_hr">~3MB single file, zero deps</td>
+            <td data-i18n="comp_deploy_wh">~7MB single file, zero deps</td>
+            <td data-i18n="comp_deploy_n8n">Docker + SQLite / PostgreSQL</td>
+            <td data-i18n="comp_deploy_hug">Docker + MySQL / PostgreSQL</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_reload">Hot Reload</td>
+            <td data-i18n="comp_reload_hr">Auto-watches directory, zero-config</td>
+            <td data-i18n-html="comp_reload_wh"><code>-hotreload</code> flag, single file</td>
+            <td data-i18n="comp_reload_n8n">Restart required</td>
+            <td data-i18n="comp_reload_hug">Restart required</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_route">Routing</td>
+            <td data-i18n-html="comp_route_hr"><code>/webhook/{filename}</code> targeted routing</td>
+            <td data-i18n-html="comp_route_wh"><code>/hooks/{id}</code> flat routing</td>
+            <td data-i18n="comp_route_n8n">Workflow engine</td>
+            <td data-i18n="comp_route_hug">Scenario graph (agent links)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_proc">Process Management</td>
+            <td data-i18n="comp_proc_hr">Built-in CLI daemon (start/stop/status)</td>
+            <td data-i18n="comp_proc_wh">Requires external systemd, etc.</td>
+            <td data-i18n="comp_proc_n8n">Docker container management</td>
+            <td data-i18n="comp_proc_hug">Docker container management</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_config">Config Format</td>
+            <td data-i18n="comp_config_hr">YAML (readable, comments supported)</td>
+            <td data-i18n="comp_config_wh">JSON / YAML</td>
+            <td data-i18n="comp_config_n8n">Visual editor / JSON</td>
+            <td data-i18n="comp_config_hug">JSON (agent config)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_health">Health Check</td>
+            <td data-i18n-html="comp_health_hr">Built-in <code>/health</code> endpoint</td>
+            <td data-i18n="comp_health_wh">No built-in endpoint</td>
+            <td data-i18n="comp_health_n8n">Has health check</td>
+            <td data-i18n="comp_health_hug">Has health check</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_license">License</td>
+            <td data-i18n="comp_lic_hr">MIT, full freedom</td>
+            <td data-i18n-html="comp_lic_wh">MIT, full freedom</td>
+            <td data-i18n="comp_lic_n8n">Fair-code (SUL), restrictions</td>
+            <td data-i18n="comp_lic_hug">MIT, full freedom</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- How It Works -->
-<section class="section" id="how">
+<section class="section section-alt" id="how">
   <div class="container">
     <h2 class="section-title" data-i18n="how_title">How It Works</h2>
     <p class="section-desc" data-i18n="how_desc">From HTTP request to command execution in four steps.</p>
@@ -468,7 +659,7 @@
 </section>
 
 <!-- Quick Start -->
-<section class="section section-alt" id="quickstart">
+<section class="section" id="quickstart">
   <div class="container">
     <h2 class="section-title" data-i18n="qs_title">Quick Start</h2>
     <p class="section-desc" data-i18n="qs_desc">From source to running webhook server in three steps.</p>
@@ -497,7 +688,7 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
 </section>
 
 <!-- Audience -->
-<section class="section" id="audience">
+<section class="section section-alt" id="audience">
   <div class="container">
     <h2 class="section-title" data-i18n="aud_title">Built For</h2>
     <p class="section-desc" data-i18n="aud_desc">HookRun is the right tool if you need a simple, reliable bridge between webhooks and server actions.</p>
@@ -530,6 +721,36 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
   </div>
 </section>
 
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="container">
+    <h2 class="section-title" data-i18n="faq_title">FAQ</h2>
+    <p class="section-desc" data-i18n="faq_desc">Common questions about HookRun.</p>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary data-i18n="faq_q1">How does HookRun compare to adnanh/webhook?</summary>
+        <div class="faq-answer" data-i18n-html="faq_a1">HookRun is smaller (~3MB vs ~7MB), has built-in daemon management, directory-watch hot reload, and file-based routing for precise matching. adnanh/webhook requires external process management like systemd and offers flat <code>/hooks/{id}</code> routing.</div>
+      </details>
+      <details class="faq-item">
+        <summary data-i18n="faq_q2">Why choose HookRun over n8n or Huginn?</summary>
+        <div class="faq-answer" data-i18n-html="faq_a2">n8n and Huginn are heavy tools requiring Docker, databases, and GB-level deployments. HookRun is a single ~3MB binary with zero dependencies and built-in execution policies for concurrency control — ideal for webhook-to-action scenarios without container or database overhead.</div>
+      </details>
+      <details class="faq-item">
+        <summary data-i18n="faq_q3">What is HookRun best suited for?</summary>
+        <div class="faq-answer" data-i18n="faq_a3">Git auto-deploy, CI/CD pipeline triggers, monitoring alert responses, and personal server automation. HookRun provides execution policies (block/always/cooldown) for reliable operation in any webhook-driven scenario.</div>
+      </details>
+      <details class="faq-item">
+        <summary data-i18n="faq_q4">Does HookRun require Docker or a database?</summary>
+        <div class="faq-answer" data-i18n-html="faq_a4">No. HookRun is a single static binary with zero runtime dependencies. Download, write YAML config, and run. No Docker, no database, no container runtime needed.</div>
+      </details>
+      <details class="faq-item">
+        <summary data-i18n="faq_q5">Do I need to restart after changing config?</summary>
+        <div class="faq-answer" data-i18n-html="faq_a5">No. HookRun watches the config directory and automatically hot-reloads changes. You can also trigger reload manually via <code>hookrun reload</code>.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
 <!-- CTA -->
 <section class="section section-alt">
   <div class="container cta-block">
@@ -555,10 +776,14 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
   </div>
 </footer>
 
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">
+  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
 <script>
 const T = {
   en: {
-    nav_features: "Features", nav_usecases: "Use Cases", nav_why: "Why HookRun", nav_quickstart: "Quick Start",
+    nav_features: "Features", nav_usecases: "Use Cases", nav_why: "Why HookRun", nav_quickstart: "Quick Start", nav_faq: "FAQ",
     hero_title: "Webhook in,<br>action out.",
     hero_desc: "A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.",
     hero_cta_start: "Get Started", hero_cta_github: "View on GitHub",
@@ -609,10 +834,34 @@ const T = {
     aud6_role: "Small Teams", aud6_desc: "Self-hosted, open source, no SaaS dependency. Full control over your automation stack.",
     cta_title: "Ready to Dive Deeper?", cta_desc: "Explore configuration parameters, CLI commands, deployment strategies, and more.",
     cta_btn: "Browse Documentation",
-    footer_docs: "Config", footer_usage: "Usage", footer_deploy: "Deployment"
+    footer_docs: "Config", footer_usage: "Usage", footer_deploy: "Deployment",
+    comp_title: "HookRun vs Alternatives",
+    comp_desc: "Purpose-built for webhook scenarios. See how HookRun stacks up.",
+    comp_h_hookrun: "HookRun",
+    comp_r_exec: "Execution Policy", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> \u2014 3 modes", comp_exec_wh: "No concurrency control", comp_exec_n8n: "Partial (retry / wait)", comp_exec_hug: "Scenario-based triggers",
+    comp_r_deploy: "Deploy Size", comp_deploy_hr: "~3MB single file, zero deps", comp_deploy_wh: "~7MB single file, zero deps", comp_deploy_n8n: "Docker + SQLite / PostgreSQL", comp_deploy_hug: "Docker + MySQL / PostgreSQL",
+    comp_r_reload: "Hot Reload", comp_reload_hr: "Auto-watches directory, zero-config", comp_reload_wh: "<code>-hotreload</code> flag, single file", comp_reload_n8n: "Restart required", comp_reload_hug: "Restart required",
+    comp_r_auth: "Authentication", comp_auth_hr: "Token + HMAC + IP whitelist", comp_auth_wh: "Token + HMAC", comp_auth_n8n: "Basic / Header / JWT / IP", comp_auth_hug: "Devise + OAuth",
+    comp_r_license: "License", comp_lic_hr: "MIT, full freedom", comp_lic_wh: "MIT, full freedom", comp_lic_n8n: "Fair-code (SUL), restrictions", comp_lic_hug: "MIT, full freedom",
+    comp_r_route: "Routing", comp_route_hr: "<code>/webhook/{filename}</code> targeted routing", comp_route_wh: "<code>/hooks/{id}</code> flat routing", comp_route_n8n: "Workflow engine", comp_route_hug: "Scenario graph (agent links)",
+    comp_r_proc: "Process Management", comp_proc_hr: "Built-in CLI daemon (start/stop/status)", comp_proc_wh: "Requires external systemd, etc.", comp_proc_n8n: "Docker container management", comp_proc_hug: "Docker container management",
+    comp_r_config: "Config Format", comp_config_hr: "YAML (readable, comments supported)", comp_config_wh: "JSON / YAML", comp_config_n8n: "Visual editor / JSON", comp_config_hug: "JSON (agent config)",
+    comp_r_health: "Health Check", comp_health_hr: "Built-in <code>/health</code> endpoint", comp_health_wh: "No built-in endpoint", comp_health_n8n: "Has health check", comp_health_hug: "Has health check",
+    faq_title: "FAQ",
+    faq_desc: "Common questions about HookRun.",
+    faq_q1: "How does HookRun compare to adnanh/webhook?",
+    faq_a1: "HookRun is smaller (~3MB vs ~7MB), has built-in daemon management, directory-watch hot reload, and file-based routing for precise matching. adnanh/webhook requires external process management like systemd and offers flat <code>/hooks/{id}</code> routing.",
+    faq_q2: "Why choose HookRun over n8n or Huginn?",
+    faq_a2: "n8n and Huginn are heavy tools requiring Docker, databases, and GB-level deployments. HookRun is a single ~3MB binary with zero dependencies and built-in execution policies for concurrency control \u2014 ideal for webhook-to-action scenarios without container or database overhead.",
+    faq_q3: "What is HookRun best suited for?",
+    faq_a3: "Git auto-deploy, CI/CD pipeline triggers, monitoring alert responses, and personal server automation. HookRun provides execution policies (block/always/cooldown) for reliable operation in any webhook-driven scenario.",
+    faq_q4: "Does HookRun require Docker or a database?",
+    faq_a4: "No. HookRun is a single static binary with zero runtime dependencies. Download, write YAML config, and run. No Docker, no database, no container runtime needed.",
+    faq_q5: "Do I need to restart after changing config?",
+    faq_a5: "No. HookRun watches the config directory and automatically hot-reloads changes. You can also trigger reload manually via <code>hookrun reload</code>."
   },
   zh: {
-    nav_features: "特性", nav_usecases: "使用场景", nav_why: "为什么选 HookRun", nav_quickstart: "快速开始",
+    nav_features: "特性", nav_usecases: "使用场景", nav_why: "为什么选 HookRun", nav_quickstart: "快速开始", nav_faq: "常见问题",
     hero_title: "Webhook 触发，<br>自动执行。",
     hero_desc: "轻量级 Webhook 动作引擎，基于 YAML 规则，接收 Webhook 请求后自动执行自定义命令和脚本。单二进制文件，跨平台支持，开源免费。",
     hero_cta_start: "快速开始", hero_cta_github: "查看 GitHub",
@@ -663,7 +912,31 @@ const T = {
     aud6_role: "小型团队", aud6_desc: "自托管、开源、不依赖 SaaS。完全掌控你的自动化栈。",
     cta_title: "想深入了解？", cta_desc: "探索配置参数、CLI 命令、部署策略等更多内容。",
     cta_btn: "浏览文档",
-    footer_docs: "配置", footer_usage: "使用", footer_deploy: "部署"
+    footer_docs: "配置", footer_usage: "使用", footer_deploy: "部署",
+    comp_title: "HookRun 与竞品对比",
+    comp_desc: "专为 Webhook 场景设计，看看 HookRun 如何胜出。",
+    comp_h_hookrun: "HookRun",
+    comp_r_exec: "执行策略", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> 三种模式", comp_exec_wh: "无并发控制", comp_exec_n8n: "部分支持（重试/等待）", comp_exec_hug: "基于场景触发",
+    comp_r_deploy: "部署体积", comp_deploy_hr: "单文件 ~3MB，零依赖", comp_deploy_wh: "单文件 ~7MB，零依赖", comp_deploy_n8n: "Docker + SQLite / PostgreSQL", comp_deploy_hug: "Docker + MySQL / PostgreSQL",
+    comp_r_reload: "热更新", comp_reload_hr: "自动监听目录，零配置", comp_reload_wh: "<code>-hotreload</code> 参数，单文件", comp_reload_n8n: "需重启", comp_reload_hug: "需重启",
+    comp_r_auth: "认证体系", comp_auth_hr: "Token + HMAC + IP 白名单", comp_auth_wh: "Token + HMAC", comp_auth_n8n: "Basic / Header / JWT / IP", comp_auth_hug: "Devise + OAuth",
+    comp_r_license: "开源协议", comp_lic_hr: "MIT，完全自由", comp_lic_wh: "MIT，完全自由", comp_lic_n8n: "Fair-code (SUL)，有限制", comp_lic_hug: "MIT，完全自由",
+    comp_r_route: "路由机制", comp_route_hr: "<code>/webhook/{filename}</code> 精准路由", comp_route_wh: "<code>/hooks/{id}</code> 扁平路由", comp_route_n8n: "工作流引擎", comp_route_hug: "场景图（Agent 链接）",
+    comp_r_proc: "进程管理", comp_proc_hr: "内置 CLI 守护进程（start/stop/status）", comp_proc_wh: "依赖外部 systemd 等", comp_proc_n8n: "Docker 容器管理", comp_proc_hug: "Docker 容器管理",
+    comp_r_config: "配置格式", comp_config_hr: "YAML（可读性强，支持注释）", comp_config_wh: "JSON / YAML", comp_config_n8n: "可视化编辑器 / JSON", comp_config_hug: "JSON（Agent 配置）",
+    comp_r_health: "健康检查", comp_health_hr: "内置 <code>/health</code> 端点", comp_health_wh: "无内置端点", comp_health_n8n: "有健康检查", comp_health_hug: "有健康检查",
+    faq_title: "常见问题",
+    faq_desc: "关于 HookRun 的常见疑问。",
+    faq_q1: "HookRun 与 adnanh/webhook 有什么区别？",
+    faq_a1: "HookRun 更小（~3MB vs ~7MB），内置守护进程管理、目录监听热重载，支持文件级精准路由。adnanh/webhook 需要外部 systemd 等进程管理，路由为扁平的 <code>/hooks/{id}</code>。",
+    faq_q2: "为什么选 HookRun 而不是 n8n 或 Huginn？",
+    faq_a2: "n8n 和 Huginn 是重型工具，需要 Docker、数据库和 GB 级部署。HookRun 是单文件 ~3MB 二进制，零依赖，内置执行策略（block/always/cooldown）用于并发控制 —— 适合不想引入容器或数据库的 Webhook 触发动作场景。",
+    faq_q3: "HookRun 适合什么场景？",
+    faq_a3: "Git 自动部署、CI/CD 流水线触发、监控告警响应、个人服务器自动化。HookRun 提供执行策略（block/always/cooldown）确保任何 Webhook 驱动场景的可靠运行。",
+    faq_q4: "HookRun 需要 Docker 或数据库吗？",
+    faq_a4: "不需要。HookRun 是单文件静态二进制，零运行时依赖。下载、写 YAML 配置、运行即可。无需 Docker、无需数据库、无需容器运行时。",
+    faq_q5: "修改配置后需要重启吗？",
+    faq_a5: "不需要。HookRun 自动监听配置目录变化并热重载。也可通过 <code>hookrun reload</code> 手动触发重载。"
   }
 };
 
@@ -685,8 +958,8 @@ function setLang(l) {
   try { localStorage.setItem('hookrun-lang', l); } catch(e) {}
   // Update SEO title and description per language
   var seo = l === 'zh'
-    ? { title: 'HookRun - 轻量级 Webhook 动作引擎 | YAML 驱动自动化', desc: 'HookRun 是轻量级 Webhook 动作引擎，基于 YAML 规则接收请求后自动执行命令和脚本。单二进制文件，跨平台支持（Linux/macOS/Windows），MIT 开源。' }
-    : { title: 'HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation', desc: 'HookRun is a lightweight webhook action engine that executes custom commands and scripts based on YAML rules. Single binary, cross-platform (Linux, macOS, Windows), open source under MIT.' };
+    ? { title: 'HookRun - 轻量级 Webhook 动作引擎 | YAML 驱动自动化', desc: 'HookRun 是轻量级 Webhook 动作引擎（~3MB 单文件、零依赖），接收 Webhook 请求后基于 YAML 规则自动执行命令和脚本。支持 Token/HMAC/IP 认证、热重载，跨平台，MIT 开源。' }
+    : { title: 'HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation', desc: 'HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands and scripts based on YAML rules when webhook requests arrive. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.' };
   document.title = seo.title;
   var dm = document.querySelector('meta[name="description"]');
   if (dm) dm.setAttribute('content', seo.desc);
@@ -712,6 +985,15 @@ function setLang(l) {
   if (saved === 'zh' || saved === 'en') { setLang(saved); return; }
   const bl = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
   setLang(bl.startsWith('zh') ? 'zh' : 'en');
+})();
+
+// Back to top
+(function() {
+  var btn = document.querySelector('.back-to-top');
+  if (!btn) return;
+  window.addEventListener('scroll', function() {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  }, { passive: true });
 })();
 </script>
 
