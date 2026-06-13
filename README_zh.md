@@ -24,12 +24,12 @@
 
 | | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n / Huginn |
 |---|---------|------|------|
-| **部署** | 单文件 | 单文件 | 需要 Docker + 数据库 |
-| **配置** | YAML（支持注释） | JSON（不支持注释） | 可视化编辑器 / JSON |
-| **热更新** | 文件监听自动重载 | 需重启 / SIGHUP | 需要重启 |
-| **限流** | 内置冷却策略 | 不支持 | 部分支持 |
-| **路由** | `/webhook/{文件名}` | `/hooks/{id}` | 工作流引擎 |
-| **依赖** | 零依赖 | 零依赖 | Node.js / Ruby + 数据库 |
+| **部署依赖** | 单文件 <5MB，零依赖 | 单文件 ~2MB，零依赖 | Docker + 数据库 + Node.js/Ruby |
+| **配置格式** | YAML（可读性强，支持注释） | JSON（无注释，社区抱怨多） | 可视化 / JSON |
+| **执行策略** | block / always / cooldown | 无策略，每次触发 | 部分支持 |
+| **热更新** | 文件监听自动热加载 | 需重启或 SIGHUP | 需重启 |
+| **路由机制** | `/webhook/{filename}` 精准路由 | `/hooks/{id}` 扁平路由 | 流程引擎 |
+| **认证体系** | Token + HMAC + IP 白名单 | Token + HMAC | OAuth 为主 |
 
 - **安全优先** — Token 认证、HMAC 签名验证、IP 白名单，多重防护 AND 组合，保障端点安全
 - **轻巧灵活** — 单二进制文件，不到 5MB，零依赖。无需数据库、无需容器运行时。`scp` 到服务器就能跑，极低资源即可运行

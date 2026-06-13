@@ -24,12 +24,12 @@ Single binary under 5MB. No database. No container runtime. Cross-platform (Linu
 
 | | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n / Huginn |
 |---|---------|------|------|
-| **Deploy** | Single binary | Single binary | Docker + DB required |
-| **Config** | YAML (comments supported) | JSON (no comments) | Visual editor / JSON |
+| **Deploy & Deps** | Single binary <5MB, zero deps | Single binary ~2MB, zero deps | Docker + DB + Node.js/Ruby |
+| **Config Format** | YAML (readable, comments supported) | JSON (no comments, widely requested) | Visual editor / JSON |
+| **Execution Policy** | block / always / cooldown | No policy, always triggers | Partial support |
 | **Hot Reload** | File-watch auto reload | Restart / SIGHUP | Restart required |
-| **Rate Limiting** | Built-in cooldown policy | Not available | Partial |
-| **Routing** | `/webhook/{filename}` | `/hooks/{id}` | Workflow engine |
-| **Dependencies** | Zero | Zero | Node.js / Ruby + DB |
+| **Routing** | `/webhook/{filename}` targeted | `/hooks/{id}` flat | Workflow engine |
+| **Authentication** | Token + HMAC + IP whitelist | Token + HMAC | OAuth primarily |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
 - **Lightweight** — One binary, under 5MB, zero dependencies. No database, no container runtime. `scp` it to your server and run — minimal resources required
