@@ -34,6 +34,7 @@ A purpose-built action engine for webhook automation, compared with general-purp
 | **Process Mgmt** | Built-in CLI daemon (start/stop/status) | Requires external systemd, etc. | Docker container management | Docker container management |
 | **Config Format** | YAML (readable, comments supported) | JSON / YAML | Visual editor / JSON | JSON (agent config) |
 | **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
+| **License** | MIT, full freedom | MIT, full freedom | Fair-code (SUL), commercial restrictions | MIT, full freedom |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
 - **Lightweight** — One binary, under 5MB, zero dependencies. No database, no container runtime. `scp` it to your server and run — minimal resources required
