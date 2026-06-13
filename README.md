@@ -14,11 +14,11 @@ A lightweight webhook action engine — execute custom commands and scripts base
 Single binary under 5MB. No database. No container runtime. Cross-platform (Linux / Windows / macOS).
 
 ```
-┌──────────┐     POST /webhook/{name}     ┌─────────────┐     Auth + Filter     ┌────────────┐     Execute     ┌──────────┐
-│  GitHub   │ ──────────────────────────▶ │   HookRun    │ ──────────────────▶  │   Engine   │ ─────────────▶ │ Commands │
-│  GitLab   │     Token / HMAC / IP       │  (routing &  │     Match rules      │  (policy   │    shell &     │ Scripts  │
-│  Grafana  │ ◀────────────────────────── │   matching)  │ ◀──────────────────  │   check)   │ ◀───────────── │ Deploy   │
-│  Custom   │       JSON response         │              │     Action result    │            │    stdout      │          │
+┌──────────┐     POST /webhook/{name}     ┌─────────────┐     Auth + Filter    ┌────────────┐     Execute    ┌──────────┐
+│  GitHub  │ ──────────────────────────▶  │   HookRun   │ ──────────────────▶  │   Engine   │ ─────────────▶ │ Commands │
+│  GitLab  │     Token / HMAC / IP        │  (routing & │     Match rules      │  (policy   │    shell &     │ Scripts  │
+│  Grafana │ ◀──────────────────────────  │   matching) │ ◀──────────────────  │   check)   │ ◀───────────── │ Deploy   │
+│  Custom  │       JSON response          │             │     Action result    │            │    stdout      │          │
 └──────────┘                              └─────────────┘                      └────────────┘                └──────────┘
 ```
 
