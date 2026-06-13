@@ -166,6 +166,8 @@
     .badge-strip img { height: 20px; vertical-align: middle; }
     .gh-badges { margin-top: 8px; }
     .gh-badges img { height: 18px; }
+    .footer-badge img { height: 36px; opacity: .85; transition: opacity .15s; }
+    .footer-badge a:hover img { opacity: 1; }
     .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
     .badge-accent { border-color: var(--accent-border); }
     .badge-accent .badge-dot { box-shadow: 0 0 6px var(--accent); }
@@ -261,7 +263,7 @@
 
     /* Footer */
     footer { border-top: 1px solid var(--border); padding: 40px 0; }
-    .footer-inner { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-3); }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-3); gap: 16px; flex-wrap: wrap; }
     .footer-links { display: flex; gap: 24px; }
     .footer-links a { color: var(--text-3); }
     .footer-links a:hover { color: var(--text-2); }
@@ -318,6 +320,7 @@
       .section { padding: 64px 0; }
       .section-title { margin-bottom: 10px; }
       .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+      .footer-badge { margin-top: 8px; }
       .badge-strip { gap: 6px; }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -771,6 +774,9 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
         <a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" data-i18n="footer_docs" data-i18n-doc="docs/configuration">Docs</a>
         <a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" data-i18n="footer_usage" data-i18n-doc="docs/usage">Usage</a>
         <a href="https://github.com/bluvenr/hookrun/blob/main/docs/deployment.md" target="_blank" rel="noopener" data-i18n="footer_deploy" data-i18n-doc="docs/deployment">Deployment</a>
+      </div>
+      <div class="footer-badge">
+        <a href="https://www.producthunt.com/products/hookrun?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-hookrun" target="_blank" rel="noopener noreferrer"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1170846&theme=dark" alt="HookRun - Turn webhook events into server actions with one YAML file | Product Hunt" height="36"></a>
       </div>
     </div>
   </div>
