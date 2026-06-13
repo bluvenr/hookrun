@@ -3,6 +3,8 @@
 [![Release](https://img.shields.io/github/v/release/bluvenr/hookrun?include_prereleases&sort=semver)](https://github.com/bluvenr/hookrun/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/bluvenr/hookrun)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bluvenr/hookrun)](https://goreportcard.com/report/github.com/bluvenr/hookrun)
+[![codecov](https://codecov.io/gh/bluvenr/hookrun/branch/main/graph/badge.svg)](https://codecov.io/gh/bluvenr/hookrun)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/bluvenr/hookrun)](https://pkg.go.dev/github.com/bluvenr/hookrun)
 [![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
 
 [中文文档](README_zh.md) | [Website](https://bluvenr.github.io/hookrun/)
