@@ -1,14 +1,39 @@
 # HookRun
 
+[![Release](https://img.shields.io/github/v/release/bluvenr/hookrun?include_prereleases&sort=semver)](https://github.com/bluvenr/hookrun/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/bluvenr/hookrun)](https://go.dev/)
-[![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bluvenr/hookrun)](https://goreportcard.com/report/github.com/bluvenr/hookrun)
+[![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
 
 [中文文档](README_zh.md) | [Website](https://bluvenr.github.io/hookrun/)
 
 A lightweight webhook action engine — execute custom commands and scripts based on YAML rules when webhook requests arrive.
 
-Single binary, cross-platform (Linux / Windows / macOS).
+Single binary under 5MB. No database. No container runtime. Cross-platform (Linux / Windows / macOS).
+
+```
+┌──────────┐     POST /webhook/{name}     ┌─────────────┐     Auth + Filter     ┌────────────┐     Execute     ┌──────────┐
+│  GitHub   │ ──────────────────────────▶ │   HookRun    │ ──────────────────▶  │   Engine   │ ─────────────▶ │ Commands │
+│  GitLab   │     Token / HMAC / IP       │  (routing &  │     Match rules      │  (policy   │    shell &     │ Scripts  │
+│  Grafana  │ ◀────────────────────────── │   matching)  │ ◀──────────────────  │   check)   │ ◀───────────── │ Deploy   │
+│  Custom   │       JSON response         │              │     Action result    │            │    stdout      │          │
+└──────────┘                              └─────────────┘                      └────────────┘                └──────────┘
+```
+
+## Why HookRun?
+
+| | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n / Huginn |
+|---|---------|------|------|
+| **Deploy** | Single binary | Single binary | Docker + DB required |
+| **Config** | YAML (comments supported) | JSON (no comments) | Visual editor / JSON |
+| **Hot Reload** | File-watch auto reload | Restart / SIGHUP | Restart required |
+| **Rate Limiting** | Built-in cooldown policy | Not available | Partial |
+| **Routing** | `/webhook/{filename}` | `/hooks/{id}` | Workflow engine |
+| **Dependencies** | Zero | Zero | Node.js / Ruby + DB |
+
+- **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
+- **Lightweight** — One binary, under 5MB, zero dependencies. No database, no container runtime. `scp` it to your server and run — minimal resources required
+- **Full Control** — MIT licensed. Self-hosted. Your rules, your data, your infrastructure
 
 ## Demo
 
@@ -57,37 +82,111 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands
 - **Hot Reload** — Reload configs at runtime without restarting
 - **Log Management** — Daily/single mode with auto-cleanup, per-rule independent log files
-
-## Why HookRun?
-
-- **Security First** — Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe
-- **Lightweight** — One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources
-- **Full Control** — Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure
+- **Health Endpoint** — Built-in `/health` endpoint for monitoring integration (Prometheus, Uptime Kuma, etc.)
 
 ## Use Cases
 
-- **Git Auto Deploy** — Push to GitHub/GitLab, server automatically pulls, builds, and deploys. No manual SSH required
-- **CI/CD Pipeline Trigger** — Chain webhook events into multi-step build pipelines with timeout control and concurrency protection
-- **Monitoring Alert Response** — Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts
-- **Custom Automation** — Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more
+### Git Auto Deploy
 
-## Documentation
+Push to GitHub/GitLab, server automatically pulls, builds, and deploys.
 
-| Document | Description |
-|----------|-------------|
-| [Configuration Reference](docs/configuration.md) | Complete parameter reference for all config fields |
-| [Usage Guide](docs/usage.md) | CLI commands, routing, response formats, and common scenarios |
-| [Deployment Guide](docs/deployment.md) | Build, systemd, Docker, Windows, and reverse proxy setup |
+```yaml
+name: "auto-deploy"
+auth:
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-webhook-secret"
+    algorithm: "sha256"
+execution:
+  policy: "block"
+rules:
+  - name: "deploy-main"
+    filters:
+      - type: "body"
+        key: "ref"
+        operator: "eq"
+        value: "refs/heads/main"
+    actions:
+      - type: "command"
+        cmd: "cd /var/www/app && git pull origin main"
+        timeout: 30
+      - type: "command"
+        cmd: "cd /var/www/app && npm install --production && npm run build"
+        timeout: 120
+      - type: "script"
+        path: "./scripts/restart.sh"
+        timeout: 30
+```
+
+### CI/CD Pipeline Trigger
+
+Chain webhook events into multi-step build pipelines with timeout control and concurrency protection.
+
+### Monitoring Alert Response
+
+Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts.
+
+```yaml
+name: "alert-handler"
+auth:
+  token:
+    source: "header"
+    key: "Authorization"
+    value: "Bearer your-grafana-token"
+execution:
+  policy: "cooldown"
+  cooldown_seconds: 300
+rules:
+  - name: "high-cpu-response"
+    filters:
+      - type: "body"
+        key: "alerts[0].labels.alertname"
+        operator: "eq"
+        value: "HighCPU"
+    actions:
+      - type: "command"
+        cmd: "echo 'CPU alert received, scaling up...'"
+        timeout: 30
+      - type: "script"
+        path: "./scripts/scale-up.sh"
+        timeout: 120
+```
+
+### Custom Automation
+
+Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.
 
 ## Quick Start
 
 ### Install
 
 ```bash
-# Build from source
+# Option 1: Build from source
 git clone https://github.com/bluvenr/hookrun.git
-cd HookRun
+cd hookrun
 go build -o hookrun ./cmd/hookrun/
+
+# Option 2: go install
+go install github.com/bluvenr/hookrun/cmd/hookrun@latest
+
+# Option 3: Download pre-built binary
+# Visit https://github.com/bluvenr/hookrun/releases
+```
+
+Cross-compile for other platforms:
+
+```bash
+# Linux amd64
+GOOS=linux GOARCH=amd64 go build -o hookrun ./cmd/hookrun/
+
+# Linux arm64 (Raspberry Pi, AWS Graviton)
+GOOS=linux GOARCH=arm64 go build -o hookrun ./cmd/hookrun/
+
+# macOS (Apple Silicon)
+GOOS=darwin GOARCH=arm64 go build -o hookrun ./cmd/hookrun/
+
+# Windows
+GOOS=windows GOARCH=amd64 go build -o hookrun.exe ./cmd/hookrun/
 ```
 
 ### Configure
@@ -159,12 +258,43 @@ hookrun start
 hookrun start -f
 ```
 
+### Docker
+
+```dockerfile
+FROM golang:1.23-alpine AS builder
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o hookrun ./cmd/hookrun/
+
+FROM alpine:latest
+RUN apk --no-cache add bash
+WORKDIR /app
+COPY --from=builder /build/hookrun /app/hookrun
+COPY config.yaml /app/
+COPY hooks/ /app/hooks/
+EXPOSE 9000
+ENTRYPOINT ["/app/hookrun", "start", "-f", "-c", "/app/config.yaml"]
+```
+
+```bash
+docker build -t hookrun:latest .
+docker run -d --name hookrun \
+  -p 9000:9000 \
+  -v ./hooks:/app/hooks \
+  -v ./logs:/app/logs \
+  --restart unless-stopped \
+  hookrun:latest
+```
+
 ### Webhook Routing
 
 | URL Pattern | Behavior |
 |-------------|----------|
 | `/webhook/my-app` | Directly route to `hooks/my-app.yaml`, execute first matching rule |
 | `/webhook` | Iterate all configs, stop at first matching rule (controlled by `allow_all`) |
+| `/health` | Health check endpoint for monitoring |
 
 ## CLI Commands
 
@@ -265,9 +395,24 @@ actions:
     isolate: true
 ```
 
+### Logging
+
+```yaml
+# Global log (config.yaml)
+log:
+  mode: "daily"                # "daily" | "single"
+  path: "./logs"
+  retention_days: 30           # daily mode only
+  # max_size_mb: 0             # single mode only, 0 = unlimited
+
+# Per-rule log (rule YAML) — dual-write: global + this file
+log:
+  path: "./logs/my-app.log"
+```
+
 ## Response Format
 
-All responses are JSON with English messages:
+All responses are JSON:
 
 ```json
 {"code": 200, "message": "ok", "config": "my-app", "rule": "deploy-main", "actions": 3}
@@ -276,6 +421,26 @@ All responses are JSON with English messages:
 {"code": 429, "message": "Task 'my-app/deploy-main' is in cooldown, retry in 120 seconds"}
 {"code": 404, "message": "Config 'not-exist' not found"}
 ```
+
+## Health Check
+
+```bash
+curl http://localhost:9000/health
+```
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.1"}
+```
+
+Integrate with Prometheus (`blackbox_exporter`), Uptime Kuma, Nagios, or any monitoring tool that supports HTTP probes.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Configuration Reference](docs/configuration.md) | Complete parameter reference for all config fields |
+| [Usage Guide](docs/usage.md) | CLI commands, routing, response formats, and common scenarios |
+| [Deployment Guide](docs/deployment.md) | Build, systemd, Docker, Windows, and reverse proxy setup |
 
 ## Project Structure
 
@@ -292,9 +457,20 @@ HookRun/
 ├── config.yaml                # Global configuration
 ├── hooks/                     # Rule YAML directory
 │   └── example.yaml
-└── docs/                      # Design documentation
+└── docs/                      # Documentation
 ```
+
+## Contributing
+
+Contributions are welcome! Here are some ways you can help:
+
+- **Report bugs** — Open an [issue](https://github.com/bluvenr/hookrun/issues) with reproduction steps
+- **Suggest features** — Share your use cases and ideas
+- **Improve docs** — Fix typos, add examples, translate documentation
+- **Submit code** — Fork, branch, and send a pull request
+
+Please run `hookrun validate` and ensure all tests pass before submitting PRs.
 
 ## License
 
-MIT
+[MIT](LICENSE)

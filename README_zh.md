@@ -1,14 +1,39 @@
 # HookRun
 
+[![Release](https://img.shields.io/github/v/release/bluvenr/hookrun?include_prereleases&sort=semver)](https://github.com/bluvenr/hookrun/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/bluvenr/hookrun)](https://go.dev/)
-[![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bluvenr/hookrun)](https://goreportcard.com/report/github.com/bluvenr/hookrun)
+[![License](https://img.shields.io/github/license/bluvenr/hookrun)](LICENSE)
 
 [English](README.md) | [官网](https://bluvenr.github.io/hookrun/)
 
-轻量级 Webhook 动作执行引擎 —— 基于 YAML 配置，接收 Webhook 请求后自动执行自定义命令/脚本。
+轻量级 Webhook 动作执行引擎 —— 基于 YAML 配置，接收 Webhook 请求后自动执行自定义命令和脚本。
 
-单二进制文件，跨平台支持（Linux / Windows / macOS）。
+单二进制文件，不到 5MB。无需数据库，无需容器运行时。跨平台支持（Linux / Windows / macOS）。
+
+```
+┌──────────┐     POST /webhook/{name}     ┌─────────────┐     认证 + 过滤      ┌────────────┐     执行命令    ┌──────────┐
+│  GitHub   │ ──────────────────────────▶ │   HookRun    │ ──────────────────▶  │   匹配引擎  │ ─────────────▶ │ 命令/脚本 │
+│  GitLab   │     Token / HMAC / IP       │  (路由匹配)   │     命中规则         │  (策略检查)  │    shell 执行  │ 部署任务  │
+│  Grafana  │ ◀────────────────────────── │              │ ◀──────────────────  │            │ ◀───────────── │          │
+│  自定义    │       JSON 响应              │              │     执行结果         │            │    标准输出     │          │
+└──────────┘                              └─────────────┘                      └────────────┘                └──────────┘
+```
+
+## 为什么选 HookRun？
+
+| | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n / Huginn |
+|---|---------|------|------|
+| **部署** | 单文件 | 单文件 | 需要 Docker + 数据库 |
+| **配置** | YAML（支持注释） | JSON（不支持注释） | 可视化编辑器 / JSON |
+| **热更新** | 文件监听自动重载 | 需重启 / SIGHUP | 需要重启 |
+| **限流** | 内置冷却策略 | 不支持 | 部分支持 |
+| **路由** | `/webhook/{文件名}` | `/hooks/{id}` | 工作流引擎 |
+| **依赖** | 零依赖 | 零依赖 | Node.js / Ruby + 数据库 |
+
+- **安全优先** — Token 认证、HMAC 签名验证、IP 白名单，多重防护 AND 组合，保障端点安全
+- **轻巧灵活** — 单二进制文件，不到 5MB，零依赖。无需数据库、无需容器运行时。`scp` 到服务器就能跑，极低资源即可运行
+- **完全可控** — MIT 开源，自托管在你自己的服务器上。你的规则、你的数据、你的基础设施
 
 ## 运行演示
 
@@ -36,7 +61,7 @@ Port:    9000
 Rules:   2 config(s)
 Uptime:  12m30s
 
-# 收到 webhook 推送
+# 收到 Webhook 推送
 $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
     -H "X-Webhook-Token: your-secret-token" \
     -H "X-GitHub-Event: push" \
@@ -48,46 +73,120 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 ## 特性
 
 - **YAML 驱动** — 所有规则通过 YAML 文件定义，无需编码
-- **定向路由** — 支持 `/webhook/{filename}` 精准定位配置，高效匹配
-- **灵活验证** — Token 验证（Header/Query）+ HMAC 签名验证（GitHub/GitLab）+ IP 白名单，AND 关系组合
+- **定向路由** — `/webhook/{文件名}` 精准定位配置，高效匹配
+- **灵活验证** — Token（Header/Query）+ HMAC 签名（GitHub/GitLab）+ IP 白名单，AND 组合
 - **多条件过滤** — 支持 Header / Query / Body 匹配，操作符：`eq` `ne` `contains` `regex`
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
-- **策略继承** — 文件级 → Rule 级逐层覆盖
-- **文件级 Filters** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
+- **策略继承** — 文件级 → 规则级逐层覆盖
+- **文件级过滤** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
 - **参数传递** — 模板变量（`{{.body.ref}}`）和 `pass_args` 将请求数据注入命令
-- **热重载** — 运行中 reload 配置，无需重启服务
+- **热重载** — 运行中自动重载配置，无需重启服务
 - **日志管理** — Daily/Single 双模式，自动清理，支持规则级独立日志
-
-## 为什么选 HookRun？
-
-- **安全优先** — Token 认证、HMAC 签名验证、IP 白名单。多层防御保障端点安全
-- **轻巧灵活** — 单二进制文件，不到 5MB。无需数据库、无需容器运行时、无重型依赖。极低资源即可运行
-- **完全可控** — MIT 开源。自托管在你自己的服务器上。你的规则、你的数据、你的基础设施
+- **健康检查** — 内置 `/health` 端点，便于对接 Prometheus、Uptime Kuma 等监控系统
 
 ## 使用场景
 
-- **Git 自动部署** — 推送到 GitHub/GitLab，服务器自动 pull、build、deploy，无需手动 SSH
-- **CI/CD 流水线触发** — 将 Webhook 事件串联为多步骤构建流水线，支持超时控制和并发保护
-- **监控告警响应** — 接收 Grafana、Prometheus 等监控告警，自动执行修复脚本
-- **自定义自动化** — 任何 HTTP POST 都是触发器。同步数据、发送通知、管理基础设施
+### Git 自动部署
 
-## 文档
+推送到 GitHub/GitLab，服务器自动 pull、build、deploy，无需手动 SSH。
 
-| 文档 | 说明 |
-|------|------|
-| [配置参数说明](docs/configuration_zh.md) | 所有配置字段的完整参数参考 |
-| [使用指南](docs/usage_zh.md) | CLI 命令、路由、响应格式和常见场景 |
-| [部署说明](docs/deployment_zh.md) | 构建、systemd、Docker、Windows 及反向代理部署 |
+```yaml
+name: "auto-deploy"
+auth:
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "your-webhook-secret"
+    algorithm: "sha256"
+execution:
+  policy: "block"
+rules:
+  - name: "deploy-main"
+    filters:
+      - type: "body"
+        key: "ref"
+        operator: "eq"
+        value: "refs/heads/main"
+    actions:
+      - type: "command"
+        cmd: "cd /var/www/app && git pull origin main"
+        timeout: 30
+      - type: "command"
+        cmd: "cd /var/www/app && npm install --production && npm run build"
+        timeout: 120
+      - type: "script"
+        path: "./scripts/restart.sh"
+        timeout: 30
+```
+
+### CI/CD 流水线触发
+
+将 Webhook 事件串联为多步骤构建流水线，支持超时控制和并发保护。
+
+### 监控告警响应
+
+接收 Grafana、Prometheus 等监控告警，自动执行修复脚本。
+
+```yaml
+name: "alert-handler"
+auth:
+  token:
+    source: "header"
+    key: "Authorization"
+    value: "Bearer your-grafana-token"
+execution:
+  policy: "cooldown"
+  cooldown_seconds: 300
+rules:
+  - name: "high-cpu-response"
+    filters:
+      - type: "body"
+        key: "alerts[0].labels.alertname"
+        operator: "eq"
+        value: "HighCPU"
+    actions:
+      - type: "command"
+        cmd: "echo '收到 CPU 告警，正在扩容...'"
+        timeout: 30
+      - type: "script"
+        path: "./scripts/scale-up.sh"
+        timeout: 120
+```
+
+### 自定义自动化
+
+任何 HTTP POST 都是触发器 — 同步数据、发送通知、管理基础设施，一切皆可自动化。
 
 ## 快速开始
 
 ### 安装
 
 ```bash
-# 从源码编译
+# 方式一：从源码编译
 git clone https://github.com/bluvenr/hookrun.git
-cd HookRun
+cd hookrun
 go build -o hookrun ./cmd/hookrun/
+
+# 方式二：go install
+go install github.com/bluvenr/hookrun/cmd/hookrun@latest
+
+# 方式三：下载预编译二进制
+# 访问 https://github.com/bluvenr/hookrun/releases
+```
+
+交叉编译到其他平台：
+
+```bash
+# Linux amd64
+GOOS=linux GOARCH=amd64 go build -o hookrun ./cmd/hookrun/
+
+# Linux arm64（树莓派、AWS Graviton）
+GOOS=linux GOARCH=arm64 go build -o hookrun ./cmd/hookrun/
+
+# macOS（Apple Silicon）
+GOOS=darwin GOARCH=arm64 go build -o hookrun ./cmd/hookrun/
+
+# Windows
+GOOS=windows GOARCH=amd64 go build -o hookrun.exe ./cmd/hookrun/
 ```
 
 ### 配置
@@ -159,12 +258,43 @@ hookrun start
 hookrun start -f
 ```
 
+### Docker
+
+```dockerfile
+FROM golang:1.23-alpine AS builder
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o hookrun ./cmd/hookrun/
+
+FROM alpine:latest
+RUN apk --no-cache add bash
+WORKDIR /app
+COPY --from=builder /build/hookrun /app/hookrun
+COPY config.yaml /app/
+COPY hooks/ /app/hooks/
+EXPOSE 9000
+ENTRYPOINT ["/app/hookrun", "start", "-f", "-c", "/app/config.yaml"]
+```
+
+```bash
+docker build -t hookrun:latest .
+docker run -d --name hookrun \
+  -p 9000:9000 \
+  -v ./hooks:/app/hooks \
+  -v ./logs:/app/logs \
+  --restart unless-stopped \
+  hookrun:latest
+```
+
 ### Webhook 路由
 
 | 请求路径 | 行为 |
 |----------|------|
-| `/webhook/my-app` | 直接定位 `hooks/my-app.yaml`，匹配第一个 rule 执行 |
-| `/webhook` | 遍历所有 yaml，匹配第一个规则后停止（受 `allow_all` 控制） |
+| `/webhook/my-app` | 直接定位 `hooks/my-app.yaml`，匹配第一个规则执行 |
+| `/webhook` | 遍历所有配置，匹配第一个规则后停止（受 `allow_all` 控制） |
+| `/health` | 健康检查端点，用于监控集成 |
 
 ## CLI 命令
 
@@ -182,7 +312,7 @@ hookrun start -f
 
 ### 请求验证（Auth）
 
-Token、HMAC 签名和 IP 白名单为 **AND** 关系，设置了的都必须通过：
+Token、HMAC 签名和 IP 白名单为 **AND** 关系，配置了的都必须通过：
 
 ```yaml
 auth:
@@ -201,7 +331,7 @@ auth:
 
 ### 过滤条件（Filters）
 
-同一 rule 内多个 filter 为 **AND** 关系（全部匹配才触发）：
+同一规则内多个 filter 为 **AND** 关系（全部匹配才触发）：
 
 ```yaml
 filters:
@@ -217,10 +347,10 @@ filters:
 
 ### 执行策略（Execution）
 
-支持文件级和 Rule 级继承，Rule 级优先：
+支持文件级和规则级继承，规则级优先：
 
 ```yaml
-# 文件级（默认）
+# 文件级（默认应用于所有规则）
 execution:
   policy: "block"              # "block" | "always" | "cooldown"
   cooldown_seconds: 300        # 仅 cooldown 模式
@@ -265,9 +395,24 @@ actions:
     isolate: true
 ```
 
+### 日志（Logging）
+
+```yaml
+# 全局日志（config.yaml）
+log:
+  mode: "daily"                # "daily" | "single"
+  path: "./logs"
+  retention_days: 30           # 仅 daily 模式
+  # max_size_mb: 0             # 仅 single 模式，0 = 不限制
+
+# 规则级日志（规则 YAML）—— 双写：全局 + 此文件
+log:
+  path: "./logs/my-app.log"
+```
+
 ## 响应格式
 
-所有响应为 JSON 格式，英文消息：
+所有响应为 JSON 格式：
 
 ```json
 {"code": 200, "message": "ok", "config": "my-app", "rule": "deploy-main", "actions": 3}
@@ -276,6 +421,26 @@ actions:
 {"code": 429, "message": "Task 'my-app/deploy-main' is in cooldown, retry in 120 seconds"}
 {"code": 404, "message": "Config 'not-exist' not found"}
 ```
+
+## 健康检查
+
+```bash
+curl http://localhost:9000/health
+```
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.1"}
+```
+
+可对接 Prometheus（`blackbox_exporter`）、Uptime Kuma、Nagios 等任何支持 HTTP 探针的监控工具。
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [配置参数说明](docs/configuration_zh.md) | 所有配置字段的完整参数参考 |
+| [使用指南](docs/usage_zh.md) | CLI 命令、路由、响应格式和常见场景 |
+| [部署说明](docs/deployment_zh.md) | 构建、systemd、Docker、Windows 及反向代理部署 |
 
 ## 项目结构
 
@@ -292,9 +457,20 @@ HookRun/
 ├── config.yaml                # 全局配置
 ├── hooks/                     # 规则 YAML 目录
 │   └── example.yaml
-└── docs/                      # 设计文档
+└── docs/                      # 文档
 ```
+
+## 参与贡献
+
+欢迎各种形式的贡献：
+
+- **报告 Bug** — 在 [Issues](https://github.com/bluvenr/hookrun/issues) 中提交，附上复现步骤
+- **功能建议** — 分享你的使用场景和想法
+- **完善文档** — 修正错别字、补充示例、翻译文档
+- **提交代码** — Fork、建分支、提交 Pull Request
+
+提交 PR 前请运行 `hookrun validate` 确保配置校验通过。
 
 ## License
 
-MIT
+[MIT](LICENSE)
