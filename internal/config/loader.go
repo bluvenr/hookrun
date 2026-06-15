@@ -119,7 +119,13 @@ func loadGlobalConfig(path string) (GlobalConfig, error) {
 		return cfg, fmt.Errorf("read config file: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	// Resolve ${env:} and ${file:} references before parsing
+	resolved, err := interpolate(string(data))
+	if err != nil {
+		return cfg, fmt.Errorf("resolve secrets in '%s': %w", path, err)
+	}
+
+	if err := yaml.Unmarshal([]byte(resolved), &cfg); err != nil {
 		return cfg, fmt.Errorf("parse config file: %w", err)
 	}
 
@@ -168,8 +174,14 @@ func loadRuleFile(path string) (*RuleConfig, error) {
 		return nil, fmt.Errorf("read rule file '%s': %w", path, err)
 	}
 
+	// Resolve ${env:} and ${file:} references before parsing
+	resolved, err := interpolate(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("resolve secrets in '%s': %w", path, err)
+	}
+
 	var rc RuleConfig
-	if err := yaml.Unmarshal(data, &rc); err != nil {
+	if err := yaml.Unmarshal([]byte(resolved), &rc); err != nil {
 		return nil, fmt.Errorf("parse rule file '%s': %w", path, err)
 	}
 

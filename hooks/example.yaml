@@ -6,7 +6,7 @@ auth:
   token:
     source: "header"             # "header" or "query"
     key: "X-Webhook-Token"
-    value: "your-secret-token"
+    value: "your-secret-token"   # or use secret references: "${env:WEBHOOK_TOKEN}" / "${file:/run/secrets/token}"
   # HMAC signature verification (GitHub, GitLab, etc.)
   # hmac:
   #   header: "X-Hub-Signature-256"   # signature header name

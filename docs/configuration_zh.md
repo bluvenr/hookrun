@@ -466,3 +466,44 @@ rules:
 log:
   path: "./logs/github-auto-deploy.log"
 ```
+
+## 4. 密钥引用
+
+YAML 配置中的所有字符串字段均支持 `${env:}` 和 `${file:}` 插值，避免明文存储密钥。
+
+### `${env:VAR_NAME}`
+
+从环境变量读取值。
+
+```yaml
+auth:
+  token:
+    source: "header"
+    key: "X-Webhook-Token"
+    value: "${env:WEBHOOK_TOKEN}"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "${env:GITHUB_WEBHOOK_SECRET}"
+```
+
+如果环境变量未设置，HookRun 启动时会报错并终止。
+
+### `${file:/path/to/secret}`
+
+从文件读取值，自动去除末尾的空白和换行符。
+
+```yaml
+auth:
+  token:
+    source: "header"
+    key: "X-Webhook-Token"
+    value: "${file:/run/secrets/webhook_token}"
+```
+
+兼容 Docker Secrets、Kubernetes Secrets（挂载为文件）和 systemd credentials。
+
+### 说明
+
+- 插值适用于 `config.yaml` 和 `hooks/*.yaml` 中的**所有**字符串字段
+- 同一文件中可使用多个引用
+- 如果引用的环境变量或文件不存在，HookRun 在加载时报错（安全失败）

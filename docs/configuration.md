@@ -466,3 +466,44 @@ rules:
 log:
   path: "./logs/github-auto-deploy.log"
 ```
+
+## 4. Secret References
+
+All string fields in YAML configuration support `${env:}` and `${file:}` interpolation to avoid storing secrets in plain text.
+
+### `${env:VAR_NAME}`
+
+Reads the value from an environment variable.
+
+```yaml
+auth:
+  token:
+    source: "header"
+    key: "X-Webhook-Token"
+    value: "${env:WEBHOOK_TOKEN}"
+  hmac:
+    header: "X-Hub-Signature-256"
+    secret: "${env:GITHUB_WEBHOOK_SECRET}"
+```
+
+If the environment variable is not set, HookRun will fail to start with a clear error message.
+
+### `${file:/path/to/secret}`
+
+Reads the value from a file. Trailing whitespace and newlines are automatically trimmed.
+
+```yaml
+auth:
+  token:
+    source: "header"
+    key: "X-Webhook-Token"
+    value: "${file:/run/secrets/webhook_token}"
+```
+
+This is compatible with Docker Secrets, Kubernetes Secrets (mounted as files), and systemd credentials.
+
+### Notes
+
+- Interpolation is applied to **all** string fields in both `config.yaml` and `hooks/*.yaml`
+- Multiple references can be used in the same file
+- If a referenced env var or file is missing, HookRun reports an error at load time (fail-safe)
