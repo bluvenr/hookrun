@@ -9,17 +9,17 @@
 
 [English](README.md) | [官网](https://bluvenr.github.io/hookrun/)
 
-轻量级 Webhook 动作执行引擎 —— 基于 YAML 配置，接收 Webhook 请求后自动执行自定义命令和脚本。
+轻量级 Webhook 动作执行引擎 —— 基于 YAML 配置，接收 Webhook 请求后自动执行自定义命令、脚本或转发 Webhook。
 
 单二进制文件，不到 5MB。无需数据库，无需容器运行时。跨平台支持（Linux / Windows / macOS）。
 
 ```
-┌──────────┐     POST /webhook/{name}     ┌─────────────┐     认证 + 过滤      ┌────────────┐     执行命令     ┌──────────┐
-│  GitHub  │ ──────────────────────────▶  │   HookRun   │ ─────────────────▶  │   匹配引擎  │ ─────────────▶  │ 命令/脚本 │
-│  GitLab  │     Token / HMAC / IP        │  (路由匹配)  │      命中规则         │  (策略检查) │    shell 执行   │ 部署任务  │
-│  Grafana │ ◀──────────────────────────  │             │ ◀─────────────────  │            │ ◀───────────── │          │
-│  自定义   │       JSON 响应               │             │     执行结果         │            │     标准输出    │          │
-└──────────┘                              └─────────────┘                     └────────────┘                └──────────┘
+┌──────────┐     POST /webhook/{name}     ┌─────────────┐     认证 + 过滤      ┌────────────┐     执行命令     ┌──────────────────┐
+│  GitHub  │ ──────────────────────────▶  │   HookRun   │ ─────────────────▶  │   匹配引擎  │ ─────────────▶  │ 命令/脚本/Webhook │
+│  GitLab  │     Token / HMAC / IP        │  (路由匹配)  │      命中规则         │  (策略检查) │    shell 执行   │ 部署任务          │
+│  Grafana │ ◀──────────────────────────  │             │ ◀─────────────────  │            │ ◀───────────── │                  │
+│  自定义   │       JSON 响应               │             │     执行结果         │            │     标准输出    │                  │
+└──────────┘                              └─────────────┘                     └────────────┘                └──────────────────┘
 ```
 
 ## 为什么选 HookRun？
@@ -87,6 +87,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **策略继承** — 文件级 → 规则级逐层覆盖
 - **文件级过滤** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
 - **参数传递** — 模板变量（`{{.body.ref}}`）和 `pass_args` 将请求数据注入命令
+- **Webhook 转发** — 将 Webhook 负载转发到其他服务，支持模板构建 Body、Header 白名单转发、`{{.raw_body}}` 原始数据注入
 - **热重载** — 运行中自动重载配置，无需重启服务
 - **日志管理** — Daily/Single 双模式，自动清理，支持规则级独立日志
 - **健康检查** — 内置 `/health` 端点，便于对接 Prometheus、Uptime Kuma 等监控系统
@@ -379,7 +380,7 @@ rules:
 
 ```yaml
 actions:
-  - type: "command"            # "command" | "script"
+  - type: "command"            # "command" | "script" | "webhook"
     cmd: "echo hello"
     timeout: 60                # 超时秒数
     isolate: false             # 是否子进程隔离
@@ -400,6 +401,14 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+  - type: "webhook"
+    url: "https://api.example.com/deploy"
+    method: "POST"
+    headers:
+      Authorization: "Bearer your-token"
+    forward_headers: ["X-GitHub-Event"]   # 白名单转发指定 Header
+    body: '{"event":"{{.header.X-GitHub-Event}}","payload":{{.raw_body}}}'
+    timeout: 30
 ```
 
 ### 日志（Logging）
@@ -459,6 +468,7 @@ HookRun/
 │   ├── server/                # HTTP 服务与路由
 │   ├── engine/                # 匹配引擎（Auth + Filter + Policy）
 │   ├── executor/              # 命令/脚本执行器
+│   ├── engine/webhook.go      # Webhook 动作转发
 │   ├── logger/                # 日志模块
 │   └── daemon/                # 守护进程管理
 ├── config.yaml                # 全局配置

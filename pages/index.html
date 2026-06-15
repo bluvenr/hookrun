@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation</title>
-  <meta name="description" content="HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands and scripts based on YAML rules when webhook requests arrive. Token/HMAC/IP auth, hot reload, cross-platform. Open source under MIT.">
+  <meta name="description" content="HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands, scripts, and forwards webhooks based on YAML rules. Token/HMAC/IP auth, hot reload, cross-platform. Open source under MIT.">
   <meta name="keywords" content="webhook, webhook automation, hookrun, YAML, git auto deploy, CI/CD, webhook action engine, Go, single binary, open source, self-hosted">
   <meta name="author" content="bluvenr">
   <meta name="robots" content="index, follow">
@@ -15,7 +15,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://bluvenr.github.io/hookrun/">
   <meta property="og:title" content="HookRun - Lightweight Webhook Action Engine">
-  <meta property="og:description" content="Lightweight webhook engine (~3MB, zero deps) that executes commands based on YAML rules. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.">
+  <meta property="og:description" content="Lightweight webhook engine (~3MB, zero deps) that executes commands, scripts, and forwards webhooks from YAML rules. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.">
   <meta property="og:site_name" content="HookRun">
   <meta property="og:locale" content="en_US">
   <meta property="og:locale:alternate" content="zh_CN">
@@ -23,7 +23,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="HookRun - Lightweight Webhook Action Engine">
-  <meta name="twitter:description" content="~3MB webhook engine that auto-executes commands from YAML rules. Token/HMAC/IP auth, hot reload, zero deps. Cross-platform, MIT license.">
+  <meta name="twitter:description" content="~3MB webhook engine that auto-executes commands, scripts, and forwards webhooks from YAML rules. Token/HMAC/IP auth, hot reload, zero deps. Cross-platform, MIT license.">
 
   <!-- Hreflang -->
   <link rel="alternate" hreflang="en" href="https://bluvenr.github.io/hookrun/">
@@ -38,7 +38,7 @@
     "name": "HookRun",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Linux, macOS, Windows",
-    "description": "A lightweight webhook action engine that executes custom commands and scripts based on YAML rules when webhook requests arrive.",
+    "description": "A lightweight webhook action engine that executes custom commands, scripts, and forwards webhooks based on YAML rules when webhook requests arrive.",
     "license": "https://opensource.org/licenses/MIT",
     "codeRepository": "https://github.com/bluvenr/hookrun",
     "downloadUrl": "https://github.com/bluvenr/hookrun/releases",
@@ -361,7 +361,7 @@
     <div class="hero-grid">
       <div>
         <h1 data-i18n-html="hero_title">Webhook in,<br>action out.</h1>
-        <p data-i18n="hero_desc">A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.</p>
+        <p data-i18n="hero_desc">A lightweight engine that executes custom commands, scripts, and forwards webhooks based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.</p>
         <div class="hero-ctas">
           <a href="#quickstart" class="btn btn-primary" data-i18n="hero_cta_start">Get Started</a>
           <a href="https://github.com/bluvenr/hookrun" class="btn btn-ghost" target="_blank" rel="noopener">
@@ -466,6 +466,11 @@
         <div class="feature-title" data-i18n="f8_title">High Performance</div>
         <div class="feature-desc" data-i18n="f8_desc">Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.</div>
       </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <div class="feature-title" data-i18n="f9_title">Webhook Action</div>
+        <div class="feature-desc" data-i18n-html="f9_desc">Forward payloads to other services with template-based body, header whitelisting, and <code>{{.raw_body}}</code> support.</div>
+      </div>
     </div>
   </div>
 </section>
@@ -511,6 +516,14 @@
         <div class="usecase-code"><span class="ck">actions</span>:
   - <span class="ck">type</span>: <span class="cs">"command"</span>
     <span class="ck">cmd</span>:  <span class="cs">"notify.sh {{.body.text}}"</span></div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <div class="usecase-title" data-i18n="uc5_title">Webhook Forwarding</div>
+        <div class="usecase-desc" data-i18n="uc5_desc">Receive a webhook and forward it to multiple downstream services with custom headers and transformed payloads.</div>
+        <div class="usecase-code"><span class="ck">actions</span>:
+  - <span class="ck">type</span>: <span class="cs">"webhook"</span>
+    <span class="ck">url</span>:  <span class="cs">"https://api.example.com/hook"</span></div>
       </div>
     </div>
     <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" data-i18n="uc_more" data-i18n-doc="docs/usage">Usage guide and more scenarios &rarr;</a></div>
@@ -632,7 +645,7 @@
 <section class="section section-alt" id="how">
   <div class="container">
     <h2 class="section-title" data-i18n="how_title">How It Works</h2>
-    <p class="section-desc" data-i18n="how_desc">From HTTP request to command execution in four steps.</p>
+    <p class="section-desc" data-i18n="how_desc">From HTTP request to action execution in four steps.</p>
     <div class="flow">
       <div class="flow-step">
         <div class="flow-num">01</div>
@@ -655,7 +668,7 @@
       <div class="flow-step">
         <div class="flow-num">04</div>
         <div class="flow-label" data-i18n="how4_label">Execute</div>
-        <div class="flow-desc" data-i18n="how4_desc">Commands and scripts run with request data injected</div>
+        <div class="flow-desc" data-i18n="how4_desc">Commands, scripts, and webhook forwards run with request data injected</div>
       </div>
     </div>
   </div>
@@ -791,7 +804,7 @@ const T = {
   en: {
     nav_features: "Features", nav_usecases: "Use Cases", nav_why: "Why HookRun", nav_quickstart: "Quick Start", nav_faq: "FAQ",
     hero_title: "Webhook in,<br>action out.",
-    hero_desc: "A lightweight engine that executes custom commands and scripts based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.",
+    hero_desc: "A lightweight engine that executes custom commands, scripts, and forwards webhooks based on YAML rules when webhook requests arrive. Single binary, cross-platform, open source.",
     hero_cta_start: "Get Started", hero_cta_github: "View on GitHub",
     badge_cross: "Cross-platform", badge_binary: "Single Binary", badge_deps: "Zero Dependencies", badge_perf: "High Performance",
     term_valid: "All configurations are valid", term_started: "HookRun started in background (PID: 8421)",
@@ -806,12 +819,14 @@ const T = {
     f6_title: "Template Variables", f6_desc: "Inject request data into commands with <code>{{.body.ref}}</code>, <code>{{.header.X}}</code>, and <code>pass_args</code>.",
     f7_title: "Hot Reload", f7_desc: "Reload all YAML configurations at runtime via CLI. No restart, no downtime.",
     f8_title: "High Performance", f8_desc: "Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.",
+    f9_title: "Webhook Action", f9_desc: "Forward payloads to other services with template-based body, header whitelisting, and <code>{{.raw_body}}</code> support.",
     uc_title: "What Can HookRun Do?",
     uc_desc: "From automated deployments to service integration, HookRun turns webhook events into actions.",
     uc1_title: "Git Auto Deploy", uc1_desc: "Push to GitHub or GitLab and your server pulls, builds, and deploys automatically. No manual SSH needed.",
     uc2_title: "CI/CD Pipeline Trigger", uc2_desc: "Chain webhook events into multi-step build pipelines with timeout control and concurrency protection.",
     uc3_title: "Monitoring Alerts", uc3_desc: "Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts.",
     uc4_title: "Custom Automation", uc4_desc: "Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.",
+    uc5_title: "Webhook Forwarding", uc5_desc: "Receive a webhook and forward it to multiple downstream services with custom headers and transformed payloads.",
     uc_more: "Usage guide and more scenarios \u2192",
     why_title: "Why HookRun?",
     why_desc: "Purpose-built for webhook automation. Secure, lightweight, and fully under your control.",
@@ -820,11 +835,11 @@ const T = {
     why3_title: "Full Control", why3_desc: "Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.",
     why_more: "View project on GitHub \u2192",
     how_title: "How It Works",
-    how_desc: "From HTTP request to command execution in four steps.",
+    how_desc: "From HTTP request to action execution in four steps.",
     how1_label: "Request", how1_desc: "HTTP POST arrives at /webhook/{filename}",
     how2_label: "Authenticate", how2_desc: "Token, HMAC signature, and IP whitelist checks",
     how3_label: "Match", how3_desc: "Filters evaluate headers, query, and body",
-    how4_label: "Execute", how4_desc: "Commands and scripts run with request data injected",
+    how4_label: "Execute", how4_desc: "Commands, scripts, and webhook forwards run with request data injected",
     how_more: "Detailed configuration guide \u2192",
     qs_title: "Quick Start", qs_desc: "From source to running webhook server in three steps.",
     qs_s1_title: "Build", qs_s2_title: "Configure", qs_s2_comment: "# Edit config.yaml and hooks/*.yaml",
@@ -869,7 +884,7 @@ const T = {
   zh: {
     nav_features: "特性", nav_usecases: "使用场景", nav_why: "为什么选 HookRun", nav_quickstart: "快速开始", nav_faq: "常见问题",
     hero_title: "Webhook 触发，<br>自动执行。",
-    hero_desc: "轻量级 Webhook 动作引擎，基于 YAML 规则，接收 Webhook 请求后自动执行自定义命令和脚本。单二进制文件，跨平台支持，开源免费。",
+    hero_desc: "轻量级 Webhook 动作引擎，基于 YAML 规则，接收 Webhook 请求后自动执行自定义命令、脚本或转发 Webhook。单二进制文件，跨平台支持，开源免费。",
     hero_cta_start: "快速开始", hero_cta_github: "查看 GitHub",
     badge_cross: "跨平台", badge_binary: "单二进制", badge_deps: "零依赖", badge_perf: "高性能",
     term_valid: "所有配置校验通过", term_started: "HookRun 已在后台启动 (PID: 8421)",
@@ -883,6 +898,7 @@ const T = {
     f6_title: "模板变量", f6_desc: "通过 <code>{{.body.ref}}</code>、<code>{{.header.X}}</code> 和 <code>pass_args</code> 将请求数据注入命令。",
     f7_title: "热重载", f7_desc: "运行中通过 CLI 热重载所有 YAML 配置，无需重启、零停机。",
     f8_title: "高性能", f8_desc: "Go 原生并发，一个二进制文件覆盖 Linux、macOS、Windows，零运行时依赖。",
+    f9_title: "Webhook 转发", f9_desc: "将负载转发到其他服务，支持模板构建 Body、Header 白名单转发和 <code>{{.raw_body}}</code> 原始数据注入。",
     feat_more: "完整配置参数参考 \u2192",
     uc_title: "HookRun 能做什么？",
     uc_desc: "从自动化部署到服务集成，HookRun 将 Webhook 事件转化为实际行动。",
@@ -890,6 +906,7 @@ const T = {
     uc2_title: "CI/CD 流水线触发", uc2_desc: "将 Webhook 事件串联为多步骤构建流水线，支持超时控制和并发保护。",
     uc3_title: "监控告警响应", uc3_desc: "接收 Grafana、Prometheus 等监控告警，自动执行修复脚本。",
     uc4_title: "自定义自动化", uc4_desc: "任何 HTTP POST 都是触发器。同步数据、发送通知、管理基础设施等。",
+    uc5_title: "Webhook 转发", uc5_desc: "接收 Webhook 并将其转发到多个下游服务，支持自定义 Header 和负载转换。",
     uc_more: "使用指南与更多场景 \u2192",
     why_title: "为什么选 HookRun？",
     why_desc: "专为 Webhook 自动化打造。安全、轻巧、完全由你掌控。",
@@ -898,11 +915,11 @@ const T = {
     why3_title: "完全可控", why3_desc: "MIT 开源协议。自托管在你自己的服务器上。你的规则、你的数据、你的基础设施。",
     why_more: "在 GitHub 上查看项目 \u2192",
     how_title: "工作流程",
-    how_desc: "从 HTTP 请求到命令执行，只需四步。",
+    how_desc: "从 HTTP 请求到动作执行，只需四步。",
     how1_label: "接收请求", how1_desc: "HTTP POST 到达 /webhook/{filename}",
     how2_label: "身份验证", how2_desc: "Token、HMAC 签名、IP 白名单检查",
     how3_label: "规则匹配", how3_desc: "过滤条件评估 Header、Query、Body",
-    how4_label: "执行动作", how4_desc: "运行命令和脚本，注入请求数据",
+    how4_label: "执行动作", how4_desc: "运行命令、脚本和 Webhook 转发，注入请求数据",
     how_more: "详细配置指南 \u2192",
     qs_title: "快速开始", qs_desc: "三步完成：从源码到运行中的 Webhook 服务器。",
     qs_s1_title: "编译", qs_s2_title: "配置", qs_s2_comment: "# 编辑 config.yaml 和 hooks/*.yaml",
@@ -964,8 +981,8 @@ function setLang(l) {
   try { localStorage.setItem('hookrun-lang', l); } catch(e) {}
   // Update SEO title and description per language
   var seo = l === 'zh'
-    ? { title: 'HookRun - 轻量级 Webhook 动作引擎 | YAML 驱动自动化', desc: 'HookRun 是轻量级 Webhook 动作引擎（~3MB 单文件、零依赖），接收 Webhook 请求后基于 YAML 规则自动执行命令和脚本。支持 Token/HMAC/IP 认证、热重载，跨平台，MIT 开源。' }
-    : { title: 'HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation', desc: 'HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands and scripts based on YAML rules when webhook requests arrive. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.' };
+    ? { title: 'HookRun - 轻量级 Webhook 动作引擎 | YAML 驱动自动化', desc: 'HookRun 是轻量级 Webhook 动作引擎（~3MB 单文件、零依赖），接收 Webhook 请求后基于 YAML 规则自动执行命令、脚本和转发 Webhook。支持 Token/HMAC/IP 认证、热重载，跨平台，MIT 开源。' }
+    : { title: 'HookRun - Lightweight Webhook Action Engine | YAML-Driven Automation', desc: 'HookRun is a lightweight webhook action engine (~3MB single binary, zero deps) that executes custom commands, scripts, and forwards webhooks based on YAML rules. Token/HMAC/IP auth, hot reload, cross-platform. MIT license.' };
   document.title = seo.title;
   var dm = document.querySelector('meta[name="description"]');
   if (dm) dm.setAttribute('content', seo.desc);

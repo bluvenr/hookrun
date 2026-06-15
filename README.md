@@ -9,17 +9,17 @@
 
 [中文文档](README_zh.md) | [Website](https://bluvenr.github.io/hookrun/)
 
-A lightweight webhook action engine — execute custom commands and scripts based on YAML rules when webhook requests arrive.
+A lightweight webhook action engine — execute custom commands, scripts, and forward webhooks based on YAML rules when webhook requests arrive.
 
 Single binary under 5MB. No database. No container runtime. Cross-platform (Linux / Windows / macOS).
 
 ```
-┌──────────┐     POST /webhook/{name}     ┌─────────────┐     Auth + Filter    ┌────────────┐     Execute    ┌──────────┐
-│  GitHub  │ ──────────────────────────▶  │   HookRun   │ ──────────────────▶  │   Engine   │ ─────────────▶ │ Commands │
-│  GitLab  │     Token / HMAC / IP        │  (routing & │     Match rules      │  (policy   │    shell &     │ Scripts  │
-│  Grafana │ ◀──────────────────────────  │   matching) │ ◀──────────────────  │   check)   │ ◀───────────── │ Deploy   │
-│  Custom  │       JSON response          │             │     Action result    │            │    stdout      │          │
-└──────────┘                              └─────────────┘                      └────────────┘                └──────────┘
+┌──────────┐     POST /webhook/{name}     ┌─────────────┐     Auth + Filter    ┌────────────┐     Execute    ┌──────────────────┐
+│  GitHub  │ ──────────────────────────▶  │   HookRun   │ ──────────────────▶  │   Engine   │ ─────────────▶ │ Commands/Scripts │
+│  GitLab  │     Token / HMAC / IP        │  (routing & │     Match rules      │  (policy   │    shell &     │ Webhooks         │
+│  Grafana │ ◀──────────────────────────  │   matching) │ ◀──────────────────  │   check)   │ ◀───────────── │ Deploy           │
+│  Custom  │       JSON response          │             │     Action result    │            │    stdout      │                  │
+└──────────┘                              └─────────────┘                      └────────────┘                └──────────────────┘
 ```
 
 ## Why HookRun?
@@ -87,6 +87,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Policy Inheritance** — File-level → Rule-level override
 - **File-Level Filters** — Global constraints applied to all rules, AND with rule-level filters
 - **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands
+- **Webhook Action** — Forward webhook payloads to other services with template-based body, header forwarding, and `{{.raw_body}}` support
 - **Hot Reload** — Reload configs at runtime without restarting
 - **Log Management** — Daily/single mode with auto-cleanup, per-rule independent log files
 - **Health Endpoint** — Built-in `/health` endpoint for monitoring integration (Prometheus, Uptime Kuma, etc.)
@@ -379,7 +380,7 @@ rules:
 
 ```yaml
 actions:
-  - type: "command"            # "command" | "script"
+  - type: "command"            # "command" | "script" | "webhook"
     cmd: "echo hello"
     timeout: 60                # timeout in seconds
     isolate: false             # run in isolated subprocess
@@ -400,6 +401,14 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+  - type: "webhook"
+    url: "https://api.example.com/deploy"
+    method: "POST"
+    headers:
+      Authorization: "Bearer your-token"
+    forward_headers: ["X-GitHub-Event"]   # whitelist headers to forward
+    body: '{"event":"{{.header.X-GitHub-Event}}","payload":{{.raw_body}}}'
+    timeout: 30
 ```
 
 ### Logging
@@ -459,6 +468,7 @@ HookRun/
 │   ├── server/                # HTTP server & routing
 │   ├── engine/                # Matching engine (Auth + Filter + Policy)
 │   ├── executor/              # Command/script executor
+│   ├── engine/webhook.go      # Webhook action forwarding
 │   ├── logger/                # Logging module
 │   └── daemon/                # Daemon process management
 ├── config.yaml                # Global configuration

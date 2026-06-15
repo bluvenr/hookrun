@@ -321,7 +321,7 @@ Actions execute **sequentially** in the order defined.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `type` | string | Yes | — | `"command"` or `"script"` |
+| `type` | string | Yes | — | `"command"`, `"script"`, or `"webhook"` |
 | `cmd` | string | If command | — | Shell command to execute (supports template variables) |
 | `path` | string | If script | — | Script file path (supports template variables) |
 | `args` | array | No | `[]` | Arguments for script (supports template variables) |
@@ -333,9 +333,10 @@ Actions execute **sequentially** in the order defined.
 #### Action Types
 
 | Type | Description | Required Fields |
-|------|-------------|-----------------|
+|------|-------------|------------------|
 | `command` | Inline shell command | `cmd` |
 | `script` | External script file | `path` |
+| `webhook` | HTTP request to external URL | `url` |
 
 #### Platform Behavior
 
@@ -347,6 +348,72 @@ Actions execute **sequentially** in the order defined.
 #### Environment Variable
 
 All executed commands receive `HOOKRUN=1` in their environment.
+
+#### Webhook Action
+
+The `webhook` type sends an HTTP request to an external URL — useful for notifying Slack, DingTalk, Feishu, or cascading HookRun instances.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `url` | string | Yes | — | Target URL (supports template variables) |
+| `method` | string | No | `POST` | HTTP method: `POST`, `PUT`, `PATCH`, `GET` |
+| `headers` | map | No | `{}` | Custom headers (supports template variables) |
+| `forward_headers` | array | No | `[]` | Whitelist of original request headers to forward |
+| `body` | string | No | `""` | Request body template (supports `{{.raw_body}}`) |
+| `timeout` | int | No | `30` | Timeout in seconds |
+
+**Auto Headers** — Every webhook request includes:
+
+| Header | Value |
+|--------|-------|
+| `X-HookRun-Source` | `HookRun/v1.1.1` |
+| `X-HookRun-Config` | Config file name (e.g. `deploy-app`) |
+| `X-HookRun-Rule` | Rule name (e.g. `on-push`) |
+
+**Header merge priority**: Auto headers → `forward_headers` → `headers` (custom overrides all).
+
+**`{{.raw_body}}` template** — Injects the entire original request body as raw JSON. Only available in webhook `body` field (not in command/script actions to prevent shell injection).
+
+> **Important**: The `body` field must be a YAML **string**. Wrap JSON in quotes (`'...'`) or use block scalar (`|`). Template variables like `{{.raw_body}}` must include the `{{ }}` delimiters — writing `.raw_body` alone will be treated as literal text.
+
+```yaml
+# ✓ Correct — body is a string with template syntax
+body: '{"event":"push","payload":{{.raw_body}}}'
+
+# ✓ Correct — block scalar
+body: |
+  {"text": "Deploy: {{.body.ref}}", "payload": {{.raw_body}}}
+
+# ✗ Wrong — YAML mapping (causes parse error)
+body:
+  event: "push"
+  payload: .raw_body
+```
+
+```yaml
+actions:
+  # Forward entire body to another service
+  - type: "webhook"
+    url: "https://another-hookrun.example.com/webhook/deploy"
+    body: "{{.raw_body}}"
+
+  # Wrap original body with extra fields
+  - type: "webhook"
+    url: "https://hooks.slack.com/services/xxx"
+    body: |
+      {"text": "Deploy: {{.body.ref}}", "payload": {{.raw_body}}}
+
+  # Forward specific headers + custom auth
+  - type: "webhook"
+    url: "https://api.example.com/notify"
+    method: "PUT"
+    forward_headers:
+      - "X-GitHub-Event"
+      - "X-Request-Id"
+    headers:
+      Authorization: "Bearer {{.body.token}}"
+    body: '{"event": "{{.header.x-event}}"}'
+```
 
 #### Template Variables
 

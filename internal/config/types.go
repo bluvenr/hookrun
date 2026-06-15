@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // GlobalConfig represents the top-level config.yaml structure.
 type GlobalConfig struct {
@@ -93,9 +96,9 @@ type PassArg struct {
 	Key    string `yaml:"key"`    // field name or JSON path for body
 }
 
-// Action represents a command or script to execute.
+// Action represents a command, script, or webhook to execute.
 type Action struct {
-	Type            string    `yaml:"type"`                // "command" | "script"
+	Type            string    `yaml:"type"`                // "command" | "script" | "webhook"
 	Cmd             string    `yaml:"cmd,omitempty"`       // for type "command"
 	Path            string    `yaml:"path,omitempty"`      // for type "script"
 	Args            []string  `yaml:"args,omitempty"`      // for type "script"
@@ -103,6 +106,12 @@ type Action struct {
 	Timeout         int       `yaml:"timeout,omitempty"`   // seconds, 0 = no limit
 	Isolate         bool      `yaml:"isolate,omitempty"`
 	ContinueOnError bool      `yaml:"continue_on_error,omitempty"`
+	// Webhook-specific fields
+	URL            string            `yaml:"url,omitempty"`             // target URL (supports templates)
+	Method         string            `yaml:"method,omitempty"`          // HTTP method, default "POST"
+	Headers        map[string]string `yaml:"headers,omitempty"`         // custom headers (supports templates)
+	ForwardHeaders []string          `yaml:"forward_headers,omitempty"` // whitelist of original headers to forward
+	Body           string            `yaml:"body,omitempty"`            // request body template (supports {{.raw_body}})
 }
 
 // Defaults returns a GlobalConfig with default values applied.
@@ -333,14 +342,29 @@ func (p *PassArg) Validate(ruleName string, actionIndex, argIndex int) error {
 // Validate checks an Action.
 func (a *Action) Validate(ruleName string, index int) error {
 	prefix := fmt.Sprintf("rule '%s' action[%d]", ruleName, index)
-	if a.Type != "command" && a.Type != "script" {
-		return fmt.Errorf("%s: type must be 'command' or 'script', got '%s'", prefix, a.Type)
-	}
-	if a.Type == "command" && a.Cmd == "" {
-		return fmt.Errorf("%s: 'cmd' is required for command type", prefix)
-	}
-	if a.Type == "script" && a.Path == "" {
-		return fmt.Errorf("%s: 'path' is required for script type", prefix)
+	switch a.Type {
+	case "command":
+		if a.Cmd == "" {
+			return fmt.Errorf("%s: 'cmd' is required for command type", prefix)
+		}
+	case "script":
+		if a.Path == "" {
+			return fmt.Errorf("%s: 'path' is required for script type", prefix)
+		}
+	case "webhook":
+		if a.URL == "" {
+			return fmt.Errorf("%s: 'url' is required for webhook type", prefix)
+		}
+		if a.Method == "" {
+			a.Method = "POST"
+		}
+		validMethods := map[string]bool{"POST": true, "PUT": true, "PATCH": true, "GET": true}
+		if !validMethods[strings.ToUpper(a.Method)] {
+			return fmt.Errorf("%s: webhook method must be POST, PUT, PATCH, or GET, got '%s'", prefix, a.Method)
+		}
+		a.Method = strings.ToUpper(a.Method)
+	default:
+		return fmt.Errorf("%s: type must be 'command', 'script', or 'webhook', got '%s'", prefix, a.Type)
 	}
 	for i, pa := range a.PassArgs {
 		if err := pa.Validate(ruleName, index, i); err != nil {

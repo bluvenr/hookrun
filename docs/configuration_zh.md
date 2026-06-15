@@ -321,7 +321,7 @@ log:
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `type` | string | 是 | — | `"command"` 或 `"script"` |
+| `type` | string | 是 | — | `"command"`、`"script"` 或 `"webhook"` |
 | `cmd` | string | command 时必填 | — | Shell 命令（支持模板变量） |
 | `path` | string | script 时必填 | — | 脚本文件路径（支持模板变量） |
 | `args` | array | 否 | `[]` | 脚本参数（支持模板变量） |
@@ -336,6 +336,7 @@ log:
 |------|------|----------|
 | `command` | 内联 Shell 命令 | `cmd` |
 | `script` | 外部脚本文件 | `path` |
+| `webhook` | 向外部 URL 发送 HTTP 请求 | `url` |
 
 #### 平台行为
 
@@ -347,6 +348,72 @@ log:
 #### 环境变量
 
 所有执行的命令都会收到环境变量 `HOOKRUN=1`。
+
+#### Webhook 动作
+
+`webhook` 类型向外部 URL 发送 HTTP 请求，适用于通知 Slack、钉钉、飞书、或级联 HookRun 实例。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `url` | string | 是 | — | 目标 URL（支持模板变量） |
+| `method` | string | 否 | `POST` | HTTP 方法：`POST`、`PUT`、`PATCH`、`GET` |
+| `headers` | map | 否 | `{}` | 自定义 headers（支持模板变量） |
+| `forward_headers` | array | 否 | `[]` | 白名单转发原始请求 headers |
+| `body` | string | 否 | `""` | 请求体模板（支持 `{{.raw_body}}`） |
+| `timeout` | int | 否 | `30` | 超时时间（秒） |
+
+**自动 Headers** — 每个 webhook 请求自动携带：
+
+| Header | 值 |
+|--------|----|
+| `X-HookRun-Source` | `HookRun/v1.1.1` |
+| `X-HookRun-Config` | 配置文件名（如 `deploy-app`） |
+| `X-HookRun-Rule` | 规则名（如 `on-push`） |
+
+**Header 合并优先级**：自动 Headers → `forward_headers` → `headers`（自定义最高优先）。
+
+**`{{.raw_body}}` 模板** — 将原始请求体以 JSON 原文注入。仅限 webhook 的 `body` 字段使用（command/script 不支持，防止 shell 注入）。
+
+> **注意**：`body` 字段必须是 YAML **字符串**。请用引号（`'...'`）包裹 JSON 或使用块标量（`|`）。模板变量如 `{{.raw_body}}` 必须包含 `{{ }}` 分隔符，单独写 `.raw_body` 会被当作普通文本。
+
+```yaml
+# ✓ 正确 — body 是字符串，使用模板语法
+body: '{"event":"push","payload":{{.raw_body}}}'
+
+# ✓ 正确 — 块标量写法
+body: |
+  {"text": "Deploy: {{.body.ref}}", "payload": {{.raw_body}}}
+
+# ✗ 错误 — YAML 映射（会导致解析错误）
+body:
+  event: "push"
+  payload: .raw_body
+```
+
+```yaml
+actions:
+  # 完整转发原始 body
+  - type: "webhook"
+    url: "https://another-hookrun.example.com/webhook/deploy"
+    body: "{{.raw_body}}"
+
+  # 包裹原始 body + 自定义字段
+  - type: "webhook"
+    url: "https://hooks.slack.com/services/xxx"
+    body: |
+      {"text": "Deploy: {{.body.ref}}", "payload": {{.raw_body}}}
+
+  # 转发指定 headers + 自定义认证
+  - type: "webhook"
+    url: "https://api.example.com/notify"
+    method: "PUT"
+    forward_headers:
+      - "X-GitHub-Event"
+      - "X-Request-Id"
+    headers:
+      Authorization: "Bearer {{.body.token}}"
+    body: '{"event": "{{.header.x-event}}"}'
+```
 
 #### 模板变量
 

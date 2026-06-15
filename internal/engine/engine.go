@@ -501,23 +501,33 @@ func (e *Engine) markDone(taskKey string) {
 func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData, log logger.LogWriter) int {
 	completed := 0
 
-	for i, action := range actions {
-		// Resolve template variables and pass_args
-		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
-		resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
-		var resolvedArgs []string
-		for _, arg := range action.Args {
-			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
-		}
+	// Extract config/rule names from taskKey ("configName/ruleName")
+	parts := strings.SplitN(taskKey, "/", 2)
+	configName, ruleName := "", ""
+	if len(parts) == 2 {
+		configName, ruleName = parts[0], parts[1]
+	}
 
+	for i, action := range actions {
 		log.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
 
 		var result *executor.ActionResult
+
 		switch action.Type {
 		case "command":
+			resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
 			result = executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate)
 		case "script":
+			resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
+			var resolvedArgs []string
+			for _, arg := range action.Args {
+				resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
+			}
 			result = executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
+		case "webhook":
+			whResult := e.executeWebhook(&action, req, configName, ruleName, log)
+			log.Info("[%s] Webhook %s %s -> HTTP %d (%v)", taskKey, action.Method, action.URL, whResult.StatusCode, whResult.Duration)
+			result = whResult.toActionResult()
 		default:
 			log.Error("[%s] Unknown action type: %s", taskKey, action.Type)
 			continue
@@ -531,7 +541,7 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 			log.Error("[%s] Action %d/%d failed (code=%d, duration=%v): %v",
 				taskKey, i+1, len(actions), result.ExitCode, result.Duration, result.Error)
 			if result.Stderr != "" {
-				log.Error("[%s] stderr: %s", taskKey, result.Stderr)
+				log.Error("[%s] response: %s", taskKey, result.Stderr)
 			}
 			if !action.ContinueOnError {
 				log.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
