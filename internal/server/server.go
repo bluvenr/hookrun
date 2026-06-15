@@ -15,6 +15,7 @@ import (
 	"github.com/bluvenr/hookrun/internal/config"
 	"github.com/bluvenr/hookrun/internal/engine"
 	"github.com/bluvenr/hookrun/internal/logger"
+	"github.com/bluvenr/hookrun/internal/version"
 )
 
 // Server wraps the HTTP server and all dependencies.
@@ -228,7 +229,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"uptime":  uptime.String(),
 		"rules":   s.configMgr.RuleCount(),
-		"version": "1.1.2",
+		"version": version.Version,
 	})
 }
 

@@ -451,7 +451,7 @@ curl http://localhost:9000/health
 ```
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
 可对接 Prometheus（`blackbox_exporter`）、Uptime Kuma、Nagios 等任何支持 HTTP 探针的监控工具。

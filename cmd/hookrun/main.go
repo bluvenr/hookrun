@@ -16,12 +16,11 @@ import (
 	"github.com/bluvenr/hookrun/internal/engine"
 	"github.com/bluvenr/hookrun/internal/logger"
 	"github.com/bluvenr/hookrun/internal/server"
+	"github.com/bluvenr/hookrun/internal/version"
 	"github.com/spf13/cobra"
 )
 
 var (
-	Version    = "1.1.2"
-	BuildTime  = "unknown"
 	configPath string
 	foreground bool
 )
@@ -445,8 +444,8 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("HookRun v%s\n", Version)
-			fmt.Printf("Build time: %s\n", BuildTime)
+			fmt.Printf("HookRun v%s\n", version.Version)
+			fmt.Printf("Build time: %s\n", version.BuildTime)
 			fmt.Printf("Go version: %s\n", runtime.Version())
 			fmt.Printf("OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
 		},

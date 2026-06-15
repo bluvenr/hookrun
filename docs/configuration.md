@@ -366,7 +366,7 @@ The `webhook` type sends an HTTP request to an external URL — useful for notif
 
 | Header | Value |
 |--------|-------|
-| `X-HookRun-Source` | `HookRun/v1.1.2` |
+| `X-HookRun-Source` | `HookRun/v<version>` |
 | `X-HookRun-Config` | Config file name (e.g. `deploy-app`) |
 | `X-HookRun-Rule` | Rule name (e.g. `on-push`) |
 

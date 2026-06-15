@@ -451,7 +451,7 @@ curl http://localhost:9000/health
 ```
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
 Integrate with Prometheus (`blackbox_exporter`), Uptime Kuma, Nagios, or any monitoring tool that supports HTTP probes.

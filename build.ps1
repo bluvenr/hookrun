@@ -14,7 +14,7 @@ if (-not $Version) {
 }
 
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$Flags = "-X main.Version=$Version -X 'main.BuildTime=$BuildTime' -s -w"
+$Flags = "-X github.com/bluvenr/hookrun/internal/version.Version=$Version -X 'github.com/bluvenr/hookrun/internal/version.BuildTime=$BuildTime' -s -w"
 $OutDir = "dist"
 $Binary = "hookrun"
 $Entry = "./cmd/hookrun"

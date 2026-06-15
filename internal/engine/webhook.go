@@ -12,6 +12,7 @@ import (
 	"github.com/bluvenr/hookrun/internal/config"
 	"github.com/bluvenr/hookrun/internal/executor"
 	"github.com/bluvenr/hookrun/internal/logger"
+	"github.com/bluvenr/hookrun/internal/version"
 )
 
 // rawBodyPattern matches {{.raw_body}} with optional whitespace.
@@ -60,7 +61,7 @@ func (e *Engine) executeWebhook(action *config.Action, req *RequestData, configN
 	headers := make(map[string]string)
 
 	// 2a. Auto headers (X-HookRun-*)
-	headers["X-HookRun-Source"] = "HookRun/v1.1.2"
+	headers["X-HookRun-Source"] = "HookRun/v" + version.Version
 	headers["X-HookRun-Config"] = configName
 	headers["X-HookRun-Rule"] = ruleName
 

@@ -4,7 +4,7 @@ set -e
 VERSION=${1:-$(git describe --tags --always 2>/dev/null || echo "dev")}
 VERSION=$(echo "$VERSION" | sed 's/^v//')
 BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-LDFLAGS="-X main.Version=${VERSION} -X 'main.BuildTime=${BUILD_TIME}' -s -w"
+LDFLAGS="-X github.com/bluvenr/hookrun/internal/version.Version=${VERSION} -X 'github.com/bluvenr/hookrun/internal/version.BuildTime=${BUILD_TIME}' -s -w"
 OUT_DIR="dist"
 BINARY="hookrun"
 ENTRY="./cmd/hookrun"

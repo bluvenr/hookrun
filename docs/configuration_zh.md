@@ -366,7 +366,7 @@ log:
 
 | Header | 值 |
 |--------|----|
-| `X-HookRun-Source` | `HookRun/v1.1.2` |
+| `X-HookRun-Source` | `HookRun/v<version>` |
 | `X-HookRun-Config` | 配置文件名（如 `deploy-app`） |
 | `X-HookRun-Rule` | 规则名（如 `on-push`） |
 

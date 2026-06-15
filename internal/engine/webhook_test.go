@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/bluvenr/hookrun/internal/config"
+	"github.com/bluvenr/hookrun/internal/version"
 )
 
 // --- Action.Validate: webhook type ---
@@ -146,7 +147,7 @@ func TestExecuteWebhook_BasicPOST(t *testing.T) {
 		t.Errorf("unexpected body: %s", receivedBody)
 	}
 	// Check auto headers
-	if receivedHeaders.Get("X-Hookrun-Source") != "HookRun/v1.1.2" {
+	if receivedHeaders.Get("X-Hookrun-Source") != "HookRun/v"+version.Version {
 		t.Error("missing X-HookRun-Source header")
 	}
 	if receivedHeaders.Get("X-Hookrun-Config") != "my-config" {
