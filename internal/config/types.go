@@ -96,16 +96,23 @@ type PassArg struct {
 	Key    string `yaml:"key"`    // field name or JSON path for body
 }
 
+// RetryConfig holds retry settings for an action.
+type RetryConfig struct {
+	MaxAttempts     int `yaml:"max_attempts"`     // total attempts including first, must >= 1
+	IntervalSeconds int `yaml:"interval_seconds"` // base interval in seconds, must >= 0
+}
+
 // Action represents a command, script, or webhook to execute.
 type Action struct {
-	Type            string    `yaml:"type"`                // "command" | "script" | "webhook"
-	Cmd             string    `yaml:"cmd,omitempty"`       // for type "command"
-	Path            string    `yaml:"path,omitempty"`      // for type "script"
-	Args            []string  `yaml:"args,omitempty"`      // for type "script"
-	PassArgs        []PassArg `yaml:"pass_args,omitempty"` // extract from request and append as arguments
-	Timeout         int       `yaml:"timeout,omitempty"`   // seconds, 0 = no limit
-	Isolate         bool      `yaml:"isolate,omitempty"`
-	ContinueOnError bool      `yaml:"continue_on_error,omitempty"`
+	Type            string       `yaml:"type"`                // "command" | "script" | "webhook"
+	Cmd             string       `yaml:"cmd,omitempty"`       // for type "command"
+	Path            string       `yaml:"path,omitempty"`      // for type "script"
+	Args            []string     `yaml:"args,omitempty"`      // for type "script"
+	PassArgs        []PassArg    `yaml:"pass_args,omitempty"` // extract from request and append as arguments
+	Timeout         int          `yaml:"timeout,omitempty"`   // seconds, 0 = no limit
+	Isolate         bool         `yaml:"isolate,omitempty"`
+	ContinueOnError bool         `yaml:"continue_on_error,omitempty"`
+	Retry           *RetryConfig `yaml:"retry,omitempty"` // retry settings (nil = no retry)
 	// Webhook-specific fields
 	URL            string            `yaml:"url,omitempty"`             // target URL (supports templates)
 	Method         string            `yaml:"method,omitempty"`          // HTTP method, default "POST"
@@ -369,6 +376,14 @@ func (a *Action) Validate(ruleName string, index int) error {
 	for i, pa := range a.PassArgs {
 		if err := pa.Validate(ruleName, index, i); err != nil {
 			return err
+		}
+	}
+	if a.Retry != nil {
+		if a.Retry.MaxAttempts < 1 {
+			return fmt.Errorf("%s: retry.max_attempts must be >= 1, got %d", prefix, a.Retry.MaxAttempts)
+		}
+		if a.Retry.IntervalSeconds < 0 {
+			return fmt.Errorf("%s: retry.interval_seconds must be >= 0, got %d", prefix, a.Retry.IntervalSeconds)
 		}
 	}
 	return nil

@@ -36,6 +36,7 @@ A purpose-built action engine for webhook automation, compared with general-purp
 | **Process Mgmt** | Built-in CLI daemon (start/stop/status) | Requires external systemd, etc. | Docker container management | Docker container management |
 | **Config Format** | YAML (readable, comments supported) | JSON / YAML | Visual editor / JSON | JSON (agent config) |
 | **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
+| **Retry** | Built-in exponential backoff with jitter | No retry support | Retry on Fail node | Partial (scenario-level) |
 | **License** | MIT, full freedom | MIT, full freedom | Fair-code (SUL), commercial restrictions | MIT, full freedom |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
@@ -401,6 +402,11 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+  - type: "command"
+    cmd: "deploy.sh"
+    retry:                      # retry on failure with exponential backoff
+      max_attempts: 3
+      interval_seconds: 5
   - type: "webhook"
     url: "https://api.example.com/deploy"
     method: "POST"
@@ -445,7 +451,7 @@ curl http://localhost:9000/health
 ```
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.1"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
 ```
 
 Integrate with Prometheus (`blackbox_exporter`), Uptime Kuma, Nagios, or any monitoring tool that supports HTTP probes.

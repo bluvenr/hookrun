@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	Version    = "1.1.1"
+	Version    = "1.1.2"
 	BuildTime  = "unknown"
 	configPath string
 	foreground bool

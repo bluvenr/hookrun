@@ -629,6 +629,13 @@
             <td data-i18n="comp_health_hug">Has health check</td>
           </tr>
           <tr>
+            <td data-i18n="comp_r_retry">Retry</td>
+            <td data-i18n-html="comp_retry_hr">Built-in exponential backoff + jitter</td>
+            <td data-i18n="comp_retry_wh">No retry support</td>
+            <td data-i18n="comp_retry_n8n">Retry on Fail node</td>
+            <td data-i18n="comp_retry_hug">Partial (scenario-level)</td>
+          </tr>
+          <tr>
             <td data-i18n="comp_r_license">License</td>
             <td data-i18n="comp_lic_hr">MIT, full freedom</td>
             <td data-i18n-html="comp_lic_wh">MIT, full freedom</td>
@@ -868,6 +875,7 @@ const T = {
     comp_r_proc: "Process Management", comp_proc_hr: "Built-in CLI daemon (start/stop/status)", comp_proc_wh: "Requires external systemd, etc.", comp_proc_n8n: "Docker container management", comp_proc_hug: "Docker container management",
     comp_r_config: "Config Format", comp_config_hr: "YAML (readable, comments supported)", comp_config_wh: "JSON / YAML", comp_config_n8n: "Visual editor / JSON", comp_config_hug: "JSON (agent config)",
     comp_r_health: "Health Check", comp_health_hr: "Built-in <code>/health</code> endpoint", comp_health_wh: "No built-in endpoint", comp_health_n8n: "Has health check", comp_health_hug: "Has health check",
+    comp_r_retry: "Retry", comp_retry_hr: "Built-in exponential backoff + jitter", comp_retry_wh: "No retry support", comp_retry_n8n: "Retry on Fail node", comp_retry_hug: "Partial (scenario-level)",
     faq_title: "FAQ",
     faq_desc: "Common questions about HookRun.",
     faq_q1: "How does HookRun compare to adnanh/webhook?",
@@ -948,6 +956,7 @@ const T = {
     comp_r_proc: "进程管理", comp_proc_hr: "内置 CLI 守护进程（start/stop/status）", comp_proc_wh: "依赖外部 systemd 等", comp_proc_n8n: "Docker 容器管理", comp_proc_hug: "Docker 容器管理",
     comp_r_config: "配置格式", comp_config_hr: "YAML（可读性强，支持注释）", comp_config_wh: "JSON / YAML", comp_config_n8n: "可视化编辑器 / JSON", comp_config_hug: "JSON（Agent 配置）",
     comp_r_health: "健康检查", comp_health_hr: "内置 <code>/health</code> 端点", comp_health_wh: "无内置端点", comp_health_n8n: "有健康检查", comp_health_hug: "有健康检查",
+    comp_r_retry: "失败重试", comp_retry_hr: "内置指数退避 + 随机抖动", comp_retry_wh: "不支持重试", comp_retry_n8n: "Retry on Fail 节点", comp_retry_hug: "部分支持（场景级）",
     faq_title: "常见问题",
     faq_desc: "关于 HookRun 的常见疑问。",
     faq_q1: "HookRun 与 adnanh/webhook 有什么区别？",

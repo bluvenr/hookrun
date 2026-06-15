@@ -60,7 +60,7 @@ func (e *Engine) executeWebhook(action *config.Action, req *RequestData, configN
 	headers := make(map[string]string)
 
 	// 2a. Auto headers (X-HookRun-*)
-	headers["X-HookRun-Source"] = "HookRun/v1.1.1"
+	headers["X-HookRun-Source"] = "HookRun/v1.1.2"
 	headers["X-HookRun-Config"] = configName
 	headers["X-HookRun-Rule"] = ruleName
 

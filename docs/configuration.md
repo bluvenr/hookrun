@@ -366,7 +366,7 @@ The `webhook` type sends an HTTP request to an external URL — useful for notif
 
 | Header | Value |
 |--------|-------|
-| `X-HookRun-Source` | `HookRun/v1.1.1` |
+| `X-HookRun-Source` | `HookRun/v1.1.2` |
 | `X-HookRun-Config` | Config file name (e.g. `deploy-app`) |
 | `X-HookRun-Rule` | Rule name (e.g. `on-push`) |
 
@@ -414,6 +414,33 @@ actions:
       Authorization: "Bearer {{.body.token}}"
     body: '{"event": "{{.header.x-event}}"}'
 ```
+
+#### Retry
+
+Actions can be configured to retry on failure with exponential backoff:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `max_attempts` | int | No | `1` | Total attempts including first (must >= 1) |
+| `interval_seconds` | int | No | `0` | Base interval in seconds between retries (must >= 0) |
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "deploy.sh"
+    retry:
+      max_attempts: 3           # try up to 3 times (1 initial + 2 retries)
+      interval_seconds: 5       # base interval: 5s
+```
+
+**Exponential backoff** — Retry intervals grow automatically: `interval × 2^(attempt-1)` with ±25% random jitter, capped at 5 minutes.
+
+Example with `interval_seconds: 5`:
+- 1st retry: ~5s
+- 2nd retry: ~10s
+- 3rd retry: ~20s
+
+`interval_seconds: 0` means immediate retry with no wait. Retry applies to all action types (command, script, webhook). All retries are exhausted before `continue_on_error` is evaluated.
 
 #### Template Variables
 

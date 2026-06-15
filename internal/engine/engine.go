@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"regexp"
@@ -509,40 +510,52 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 	}
 
 	for i, action := range actions {
-		log.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
-
-		var result *executor.ActionResult
-
-		switch action.Type {
-		case "command":
-			resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
-			result = executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate)
-		case "script":
-			resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
-			var resolvedArgs []string
-			for _, arg := range action.Args {
-				resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
-			}
-			result = executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
-		case "webhook":
-			whResult := e.executeWebhook(&action, req, configName, ruleName, log)
-			log.Info("[%s] Webhook %s %s -> HTTP %d (%v)", taskKey, action.Method, action.URL, whResult.StatusCode, whResult.Duration)
-			result = whResult.toActionResult()
-		default:
-			log.Error("[%s] Unknown action type: %s", taskKey, action.Type)
-			continue
+		maxAttempts := 1
+		baseInterval := 0
+		if action.Retry != nil {
+			maxAttempts = action.Retry.MaxAttempts
+			baseInterval = action.Retry.IntervalSeconds
 		}
 
-		// Log result
+		var result *executor.ActionResult
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			if attempt > 1 {
+				log.Info("[%s] Action %d/%d retry %d/%d", taskKey, i+1, len(actions), attempt, maxAttempts)
+			} else {
+				log.Info("[%s] Executing action %d/%d: type=%s", taskKey, i+1, len(actions), action.Type)
+			}
+
+			result = e.executeSingleAction(&action, req, configName, ruleName, log)
+
+			if result.Success() {
+				break
+			}
+
+			// Failed — log this attempt
+			log.Error("[%s] Action %d/%d failed (attempt %d/%d, code=%d, duration=%v): %v",
+				taskKey, i+1, len(actions), attempt, maxAttempts, result.ExitCode, result.Duration, result.Error)
+			if result.Stderr != "" {
+				log.Error("[%s] response: %s", taskKey, result.Stderr)
+			}
+
+			// Check if we should retry
+			if attempt >= maxAttempts {
+				break // exhausted all attempts
+			}
+
+			// Calculate and apply retry wait
+			wait := calcRetryInterval(attempt, baseInterval)
+			if wait > 0 {
+				log.Info("[%s] Retrying in %v...", taskKey, wait.Round(time.Millisecond))
+				time.Sleep(wait)
+			}
+		}
+
+		// Final result handling
 		if result.Success() {
 			log.Info("[%s] Action %d/%d completed in %v", taskKey, i+1, len(actions), result.Duration)
 			completed++
 		} else {
-			log.Error("[%s] Action %d/%d failed (code=%d, duration=%v): %v",
-				taskKey, i+1, len(actions), result.ExitCode, result.Duration, result.Error)
-			if result.Stderr != "" {
-				log.Error("[%s] response: %s", taskKey, result.Stderr)
-			}
 			if !action.ContinueOnError {
 				log.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
 				break
@@ -555,6 +568,52 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 	}
 
 	return completed
+}
+
+// executeSingleAction runs a single action and returns the result.
+func (e *Engine) executeSingleAction(action *config.Action, req *RequestData, configName, ruleName string, log logger.LogWriter) *executor.ActionResult {
+	switch action.Type {
+	case "command":
+		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
+		return executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate)
+	case "script":
+		resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
+		var resolvedArgs []string
+		for _, arg := range action.Args {
+			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
+		}
+		return executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
+	case "webhook":
+		whResult := e.executeWebhook(action, req, configName, ruleName, log)
+		log.Info("[%s/%s] Webhook %s %s -> HTTP %d (%v)", configName, ruleName, action.Method, action.URL, whResult.StatusCode, whResult.Duration)
+		return whResult.toActionResult()
+	default:
+		log.Error("[%s/%s] Unknown action type: %s", configName, ruleName, action.Type)
+		return &executor.ActionResult{ExitCode: 1, Error: fmt.Errorf("unknown action type: %s", action.Type)}
+	}
+}
+
+// calcRetryInterval computes the wait time for a retry attempt using exponential backoff with jitter.
+// attempt is the current attempt number (1-based, so attempt=1 means first retry).
+// baseInterval is the base interval in seconds.
+// Returns interval * 2^(attempt-1) with ±25% jitter, capped at 5 minutes.
+func calcRetryInterval(attempt, baseInterval int) time.Duration {
+	if baseInterval <= 0 {
+		return 0
+	}
+	// Exponential: base * 2^(attempt-1)
+	multiplier := 1 << (attempt - 1)
+	interval := baseInterval * multiplier
+
+	// Cap at 300 seconds (5 minutes)
+	if interval > 300 {
+		interval = 300
+	}
+
+	// Apply ±25% jitter
+	// jitter range: [interval * 0.75, interval * 1.25]
+	jitter := float64(interval) * (0.75 + rand.Float64()*0.5)
+	return time.Duration(jitter) * time.Second
 }
 
 // resolveActionTemplates resolves template variables in a string and appends pass_args.

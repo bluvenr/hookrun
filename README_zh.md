@@ -36,6 +36,7 @@
 | **进程管理** | 内置 CLI 守护进程（start/stop/status） | 依赖外部 systemd 等 | Docker 容器管理 | Docker 容器管理 |
 | **配置格式** | YAML（可读性强，支持注释） | JSON / YAML | 可视化编辑器 / JSON | JSON（Agent 配置） |
 | **健康检查** | 内置 `/health` 端点，对接监控 | 无内置端点 | 有健康检查 | 有健康检查 |
+| **失败重试** | 内置指数退避 + 随机抖动 | 不支持重试 | Retry on Fail 节点 | 部分支持（场景级） |
 | **开源协议** | MIT，完全自由使用 | MIT，完全自由使用 | Fair-code (SUL)，有商业限制 | MIT，完全自由使用 |
 
 - **安全优先** — Token 认证、HMAC 签名验证、IP 白名单，多重防护 AND 组合，保障端点安全
@@ -401,6 +402,11 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+  - type: "command"
+    cmd: "deploy.sh"
+    retry:                      # 失败时指数退避重试
+      max_attempts: 3
+      interval_seconds: 5
   - type: "webhook"
     url: "https://api.example.com/deploy"
     method: "POST"
@@ -445,7 +451,7 @@ curl http://localhost:9000/health
 ```
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.1"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
 ```
 
 可对接 Prometheus（`blackbox_exporter`）、Uptime Kuma、Nagios 等任何支持 HTTP 探针的监控工具。

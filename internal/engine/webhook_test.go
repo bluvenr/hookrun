@@ -146,7 +146,7 @@ func TestExecuteWebhook_BasicPOST(t *testing.T) {
 		t.Errorf("unexpected body: %s", receivedBody)
 	}
 	// Check auto headers
-	if receivedHeaders.Get("X-Hookrun-Source") != "HookRun/v1.1.1" {
+	if receivedHeaders.Get("X-Hookrun-Source") != "HookRun/v1.1.2" {
 		t.Error("missing X-HookRun-Source header")
 	}
 	if receivedHeaders.Get("X-Hookrun-Config") != "my-config" {

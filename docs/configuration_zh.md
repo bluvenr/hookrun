@@ -366,7 +366,7 @@ log:
 
 | Header | 值 |
 |--------|----|
-| `X-HookRun-Source` | `HookRun/v1.1.1` |
+| `X-HookRun-Source` | `HookRun/v1.1.2` |
 | `X-HookRun-Config` | 配置文件名（如 `deploy-app`） |
 | `X-HookRun-Rule` | 规则名（如 `on-push`） |
 
@@ -414,6 +414,33 @@ actions:
       Authorization: "Bearer {{.body.token}}"
     body: '{"event": "{{.header.x-event}}"}'
 ```
+
+#### 失败重试
+
+Action 支持失败后自动重试，采用指数退避策略：
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `max_attempts` | int | 否 | `1` | 总尝试次数（含首次），必须 >= 1 |
+| `interval_seconds` | int | 否 | `0` | 基础间隔秒数，必须 >= 0 |
+
+```yaml
+actions:
+  - type: "command"
+    cmd: "deploy.sh"
+    retry:
+      max_attempts: 3           # 最多尝试 3 次（首次 1 次 + 重试 2 次）
+      interval_seconds: 5       # 基础间隔：5s
+```
+
+**指数退避** — 重试间隔自动增长：`interval × 2^(attempt-1)`，带 ±25% 随机抖动，上限 5 分钟。
+
+`interval_seconds: 5` 示例：
+- 第 1 次重试：~5s
+- 第 2 次重试：~10s
+- 第 3 次重试：~20s
+
+`interval_seconds: 0` 表示立即重试不等待。重试适用于所有 action 类型（command、script、webhook）。所有重试耗尽后才会评估 `continue_on_error`。
 
 #### 模板变量
 

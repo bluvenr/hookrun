@@ -228,7 +228,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"status":  "ok",
 		"uptime":  uptime.String(),
 		"rules":   s.configMgr.RuleCount(),
-		"version": "1.1.1",
+		"version": "1.1.2",
 	})
 }
 
