@@ -629,7 +629,8 @@ func (e *Engine) extractPassArgValue(pa *config.PassArg, req *RequestData) strin
 }
 
 // ParseRequest extracts RequestData from an HTTP request.
-func ParseRequest(r *http.Request) *RequestData {
+// Returns an error if the request body exceeds the configured size limit.
+func ParseRequest(r *http.Request) (*RequestData, error) {
 	data := &RequestData{
 		Headers: make(map[string]string),
 		Query:   make(map[string]string),
@@ -656,15 +657,16 @@ func ParseRequest(r *http.Request) *RequestData {
 	// Read raw body bytes (needed for HMAC signature verification)
 	if r.Body != nil {
 		rawBody, err := io.ReadAll(r.Body)
-		if err == nil {
-			data.BodyBytes = rawBody
-			// Parse body as JSON from raw bytes
-			var body map[string]interface{}
-			if err := json.Unmarshal(rawBody, &body); err == nil {
-				data.Body = body
-			}
+		if err != nil {
+			return data, err
+		}
+		data.BodyBytes = rawBody
+		// Parse body as JSON from raw bytes
+		var body map[string]interface{}
+		if err := json.Unmarshal(rawBody, &body); err == nil {
+			data.Body = body
 		}
 	}
 
-	return data
+	return data, nil
 }

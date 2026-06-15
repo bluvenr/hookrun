@@ -16,6 +16,7 @@ HookRun 使用两级 YAML 配置：
 | `server.port` | int | `9000` | HTTP 监听端口（1–65535） |
 | `server.route` | string | `/webhook` | Webhook 基础路由路径 |
 | `server.allow_all` | bool | `false` | 是否允许基础路由 `/webhook` 遍历所有配置文件 |
+| `server.max_body_size_mb` | int | `10` | 请求体大小上限 MB。`0` = 不限制 |
 | `log.mode` | string | `daily` | 日志模式：`"daily"`（按天轮转）或 `"single"`（单文件） |
 | `log.path` | string | `./logs` | 日志目录（daily）或基础路径（single） |
 | `log.retention_days` | int | `30` | 日志保留天数（仅 daily 模式） |
@@ -45,6 +46,14 @@ config_dir: "./hooks"
 
 - `true` — 请求 `/webhook` 时遍历所有配置文件，匹配第一个规则后停止
 - `false`（默认）— 请求 `/webhook` 返回 400，必须使用 `/webhook/{filename}` 定向路由
+
+### `server.max_body_size_mb`
+
+限制传入请求体的最大大小，防止 DoS 攻击。
+
+- `10`（默认）— 超过 10 MB 的请求体返回 HTTP 413
+- `0` — 不限制（谨慎使用）
+- 任意正整数 — 自定义限制（单位：MB）
 
 ### `log.mode`
 

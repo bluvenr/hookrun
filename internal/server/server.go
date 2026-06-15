@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -135,8 +136,32 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Webhook request from %s (target: %s)", r.RemoteAddr, targetOrAll(target))
 
+	// Apply request body size limit
+	cfg2 := s.configMgr.Global()
+	if cfg2.Server.MaxBodySizeMB != nil && *cfg2.Server.MaxBodySizeMB > 0 {
+		maxBytes := int64(*cfg2.Server.MaxBodySizeMB) * 1024 * 1024
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	}
+
 	// Parse request
-	reqData := engine.ParseRequest(r)
+	reqData, err := engine.ParseRequest(r)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			s.logger.Warn("Request body too large from %s (limit: %d bytes)", r.RemoteAddr, maxBytesErr.Limit)
+			writeJSON(w, http.StatusRequestEntityTooLarge, engine.Response{
+				Code:    413,
+				Message: fmt.Sprintf("Request body too large (limit: %d MB)", *cfg2.Server.MaxBodySizeMB),
+			})
+			return
+		}
+		s.logger.Warn("Failed to read request body from %s: %v", r.RemoteAddr, err)
+		writeJSON(w, http.StatusBadRequest, engine.Response{
+			Code:    400,
+			Message: fmt.Sprintf("Failed to read request body: %v", err),
+		})
+		return
+	}
 
 	var responses []engine.Response
 

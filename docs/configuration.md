@@ -16,6 +16,7 @@ HookRun uses two levels of YAML configuration:
 | `server.port` | int | `9000` | HTTP listen port (1–65535) |
 | `server.route` | string | `/webhook` | Base webhook endpoint path |
 | `server.allow_all` | bool | `false` | Allow base route (`/webhook`) to iterate all config files |
+| `server.max_body_size_mb` | int | `10` | Max request body size in MB. `0` = unlimited |
 | `log.mode` | string | `daily` | Log mode: `"daily"` (rotate by day) or `"single"` (one file) |
 | `log.path` | string | `./logs` | Log directory (daily) or base path (single) |
 | `log.retention_days` | int | `30` | Days to retain daily log files |
@@ -45,6 +46,14 @@ Controls whether the base route `/webhook` iterates through all YAML config file
 
 - `true` — Requests to `/webhook` iterate all config files, stopping at the first matching rule
 - `false` (default) — Requests to `/webhook` return 400; clients must use `/webhook/{filename}`
+
+### `server.max_body_size_mb`
+
+Limits the maximum size of incoming request bodies to prevent DoS attacks.
+
+- `10` (default) — Request bodies larger than 10 MB are rejected with HTTP 413
+- `0` — No limit (use with caution)
+- Any positive integer — Custom limit in MB
 
 ### `log.mode`
 

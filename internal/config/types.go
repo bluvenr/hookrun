@@ -11,9 +11,10 @@ type GlobalConfig struct {
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Port     int    `yaml:"port"`
-	Route    string `yaml:"route"`
-	AllowAll *bool  `yaml:"allow_all,omitempty"` // allow /webhook to iterate all configs (default: true)
+	Port          int    `yaml:"port"`
+	Route         string `yaml:"route"`
+	AllowAll      *bool  `yaml:"allow_all,omitempty"`        // allow /webhook to iterate all configs (default: false)
+	MaxBodySizeMB *int   `yaml:"max_body_size_mb,omitempty"` // max request body in MB, 0 = unlimited (default: 10)
 }
 
 // LogConfig holds logging settings.
@@ -133,6 +134,14 @@ func (g *GlobalConfig) Validate() error {
 	if g.Server.AllowAll == nil {
 		f := false
 		g.Server.AllowAll = &f
+	}
+	// Default MaxBodySizeMB to 10
+	if g.Server.MaxBodySizeMB == nil {
+		v := 10
+		g.Server.MaxBodySizeMB = &v
+	}
+	if *g.Server.MaxBodySizeMB < 0 {
+		return fmt.Errorf("server.max_body_size_mb must be >= 0, got %d", *g.Server.MaxBodySizeMB)
 	}
 	if g.Log.Path == "" {
 		g.Log.Path = "./logs"
