@@ -326,6 +326,7 @@ log:
 | `path` | string | script 时必填 | — | 脚本文件路径（支持模板变量） |
 | `args` | array | 否 | `[]` | 脚本参数（支持模板变量） |
 | `pass_args` | array | 否 | `[]` | 从请求中提取参数并追加为命令参数 |
+| `env_from` | array | 否 | `[]` | 从请求中提取值并注入为环境变量 |
 | `timeout` | int | 否 | `0`（无限制） | 超时秒数 |
 | `isolate` | bool | 否 | `false` | 是否在隔离子进程中运行 |
 | `continue_on_error` | bool | 否 | `false` | 失败后是否继续执行下一个动作 |
@@ -448,6 +449,7 @@ actions:
 
 | 模板 | 来源 | 示例 |
 |------|------|------|
+| `{{.raw_body}}` | 原始请求体 | 完整 JSON body |
 | `{{.body.<path>}}` | JSON 请求体 | `{{.body.ref}}`、`{{.body.repository.owner.name}}` |
 | `{{.header.<name>}}` | HTTP 请求头 | `{{.header.X-GitHub-Event}}` |
 | `{{.query.<name>}}` | URL 查询参数 | `{{.query.token}}` |
@@ -487,6 +489,48 @@ actions:
 ```
 echo 'Deploying:' refs/heads/main push
 ```
+
+#### `env_from` — 注入环境变量
+
+`env_from` 从请求中提取值并作为环境变量注入到命令/脚本子进程中。所有变量名自动添加 `HOOKRUN_` 前缀，防止与系统变量冲突。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `source` | string | 是 | `"header"` \| `"query"` \| `"body"` |
+| `key` | string | 是 | 字段名或 body 的 JSON 路径 |
+| `env` | string | 是 | 环境变量后缀（自动添加 `HOOKRUN_` 前缀） |
+
+**默认环境变量**（command/script 中始终可用）：
+
+| 变量 | 说明 |
+|------|------|
+| `HOOKRUN_RAW_BODY` | 原始请求体 |
+| `HOOKRUN_TRIGGER_IP` | 触发方 IP 地址 |
+
+```yaml
+actions:
+  - type: "script"
+    path: "./scripts/deploy.sh"
+    env_from:
+      - source: "body"
+        key: "ref"
+        env: "GIT_REF"            # → $HOOKRUN_GIT_REF
+      - source: "header"
+        key: "X-GitHub-Event"
+        env: "GITHUB_EVENT"       # → $HOOKRUN_GITHUB_EVENT
+```
+
+在脚本中：
+
+```bash
+#!/bin/bash
+echo "Event: $HOOKRUN_GITHUB_EVENT"    # → push
+echo "Ref: $HOOKRUN_GIT_REF"           # → refs/heads/main
+echo "Full body: $HOOKRUN_RAW_BODY"    # → {"ref":"refs/heads/main",...}
+echo "From: $HOOKRUN_TRIGGER_IP"       # → 192.30.252.0
+```
+
+> **注意**：如果 `env` 已经以 `HOOKRUN_` 开头，不会重复添加前缀。
 
 #### 示例
 

@@ -25,18 +25,18 @@ func (r *ActionResult) Success() bool {
 	return r.Error == nil && r.ExitCode == 0
 }
 
-// ExecuteCommand runs an inline shell command.
-func ExecuteCommand(cmd string, timeoutSec int, isolate bool) *ActionResult {
-	return runShell(cmd, nil, timeoutSec, isolate)
+// ExecuteCommand runs an inline shell command with optional extra env vars.
+func ExecuteCommand(cmd string, timeoutSec int, isolate bool, envVars []string) *ActionResult {
+	return runShell(cmd, nil, timeoutSec, isolate, envVars)
 }
 
-// ExecuteScript runs an external script file with optional arguments.
-func ExecuteScript(path string, args []string, timeoutSec int, isolate bool) *ActionResult {
-	return runShell(path, args, timeoutSec, isolate)
+// ExecuteScript runs an external script file with optional arguments and env vars.
+func ExecuteScript(path string, args []string, timeoutSec int, isolate bool, envVars []string) *ActionResult {
+	return runShell(path, args, timeoutSec, isolate, envVars)
 }
 
 // runShell executes a command through the system shell.
-func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool) *ActionResult {
+func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool, envVars []string) *ActionResult {
 	start := time.Now()
 
 	// Create context with optional timeout
@@ -60,8 +60,9 @@ func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool) *Ac
 		c = exec.CommandContext(ctx, shell, flag, cmd)
 	}
 
-	// Set up environment
+	// Set up environment: system env + HOOKRUN marker + custom env vars
 	c.Env = append(os.Environ(), "HOOKRUN=1")
+	c.Env = append(c.Env, envVars...)
 
 	var stdout, stderr bytes.Buffer
 	c.Stdout = &stdout

@@ -326,6 +326,7 @@ Actions execute **sequentially** in the order defined.
 | `path` | string | If script | — | Script file path (supports template variables) |
 | `args` | array | No | `[]` | Arguments for script (supports template variables) |
 | `pass_args` | array | No | `[]` | Extract from request and append as arguments |
+| `env_from` | array | No | `[]` | Extract from request and inject as environment variables |
 | `timeout` | int | No | `0` (no limit) | Timeout in seconds |
 | `isolate` | bool | No | `false` | Run in isolated subprocess |
 | `continue_on_error` | bool | No | `false` | Continue to next action if this one fails |
@@ -448,6 +449,7 @@ Commands, script paths, and script arguments support template variables that are
 
 | Template | Source | Example |
 |----------|--------|---------|
+| `{{.raw_body}}` | Raw request body | Full JSON body as-is |
 | `{{.body.<path>}}` | JSON request body | `{{.body.ref}}`, `{{.body.repository.owner.name}}` |
 | `{{.header.<name>}}` | HTTP request header | `{{.header.X-GitHub-Event}}` |
 | `{{.query.<name>}}` | URL query parameter | `{{.query.token}}` |
@@ -487,6 +489,48 @@ When the webhook receives `{"ref": "refs/heads/main"}` with header `X-GitHub-Eve
 ```
 echo 'Deploying:' refs/heads/main push
 ```
+
+#### `env_from` — Inject Environment Variables
+
+`env_from` extracts values from the request and injects them as environment variables into the command/script subprocess. All variable names are automatically prefixed with `HOOKRUN_` to prevent conflicts with system variables.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | string | Yes | `"header"` \| `"query"` \| `"body"` |
+| `key` | string | Yes | Field name or JSON path for body |
+| `env` | string | Yes | Env var suffix (auto-prefixed with `HOOKRUN_`) |
+
+**Default environment variables** (always available in command/script):
+
+| Variable | Description |
+|----------|-------------|
+| `HOOKRUN_RAW_BODY` | Raw request body as-is |
+| `HOOKRUN_TRIGGER_IP` | IP address of the request sender |
+
+```yaml
+actions:
+  - type: "script"
+    path: "./scripts/deploy.sh"
+    env_from:
+      - source: "body"
+        key: "ref"
+        env: "GIT_REF"            # → $HOOKRUN_GIT_REF
+      - source: "header"
+        key: "X-GitHub-Event"
+        env: "GITHUB_EVENT"       # → $HOOKRUN_GITHUB_EVENT
+```
+
+In your script:
+
+```bash
+#!/bin/bash
+echo "Event: $HOOKRUN_GITHUB_EVENT"    # → push
+echo "Ref: $HOOKRUN_GIT_REF"           # → refs/heads/main
+echo "Full body: $HOOKRUN_RAW_BODY"    # → {"ref":"refs/heads/main",...}
+echo "From: $HOOKRUN_TRIGGER_IP"       # → 192.30.252.0
+```
+
+> **Note**: If `env` already starts with `HOOKRUN_`, the prefix is not duplicated.
 
 #### Example
 

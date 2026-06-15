@@ -402,6 +402,15 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+    # env_from: inject request data as env vars (HOOKRUN_ prefix auto-applied)
+    env_from:
+      - source: "body"
+        key: "ref"
+        env: "GIT_REF"            # → $HOOKRUN_GIT_REF
+      - source: "header"
+        key: "X-GitHub-Event"
+        env: "GITHUB_EVENT"       # → $HOOKRUN_GITHUB_EVENT
+    # Default env vars always available: $HOOKRUN_RAW_BODY, $HOOKRUN_TRIGGER_IP
   - type: "command"
     cmd: "deploy.sh"
     retry:                      # retry on failure with exponential backoff

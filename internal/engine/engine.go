@@ -574,15 +574,17 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 func (e *Engine) executeSingleAction(action *config.Action, req *RequestData, configName, ruleName string, log logger.LogWriter) *executor.ActionResult {
 	switch action.Type {
 	case "command":
+		envVars := e.buildEnvVars(action, req)
 		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
-		return executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate)
+		return executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate, envVars)
 	case "script":
+		envVars := e.buildEnvVars(action, req)
 		resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
 		var resolvedArgs []string
 		for _, arg := range action.Args {
 			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
 		}
-		return executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate)
+		return executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate, envVars)
 	case "webhook":
 		whResult := e.executeWebhook(action, req, configName, ruleName, log)
 		log.Info("[%s/%s] Webhook %s %s -> HTTP %d (%v)", configName, ruleName, action.Method, action.URL, whResult.StatusCode, whResult.Duration)
@@ -619,11 +621,18 @@ func calcRetryInterval(attempt, baseInterval int) time.Duration {
 // resolveActionTemplates resolves template variables in a string and appends pass_args.
 // Template syntax:
 //
+//	{{.raw_body}}       - raw request body as-is (command/script only)
 //	{{.body.<path>}}    - extract from JSON body (supports dot notation and array index)
 //	{{.header.<name>}}  - extract from request header
 //	{{.query.<name>}}   - extract from query parameter
 func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs []config.PassArg) string {
 	result := tmpl
+
+	// 0. Resolve {{.raw_body}} template
+	rawBodyRe := regexp.MustCompile(`\{\{\s*\.raw_body\s*\}\}`)
+	result = rawBodyRe.ReplaceAllStringFunc(result, func(_ string) string {
+		return req.BodyRaw
+	})
 
 	// 1. Resolve {{.body.xxx}} templates
 	bodyRe := regexp.MustCompile(`\{\{\s*\.body\.([^}\s]+)\s*\}\}`)
@@ -695,6 +704,48 @@ func (e *Engine) extractPassArgValue(pa *config.PassArg, req *RequestData) strin
 	default:
 		return ""
 	}
+}
+
+// buildEnvVars constructs environment variables for command/script actions.
+// It injects default HOOKRUN_* vars and user-declared env_from vars with HOOKRUN_ prefix.
+func (e *Engine) buildEnvVars(action *config.Action, req *RequestData) []string {
+	var envVars []string
+
+	// Default env vars (always injected)
+	envVars = append(envVars, "HOOKRUN_RAW_BODY="+req.BodyRaw)
+	envVars = append(envVars, "HOOKRUN_TRIGGER_IP="+req.IP)
+
+	// User-declared env_from
+	for _, es := range action.EnvFrom {
+		val := e.extractEnvSourceValue(&es, req)
+		name := envVarName(es.Env)
+		envVars = append(envVars, name+"="+val)
+	}
+
+	return envVars
+}
+
+// extractEnvSourceValue extracts a value from the request based on EnvSource config.
+func (e *Engine) extractEnvSourceValue(es *config.EnvSource, req *RequestData) string {
+	switch es.Source {
+	case "header":
+		return req.Headers[strings.ToLower(es.Key)]
+	case "query":
+		return req.Query[es.Key]
+	case "body":
+		return e.extractBodyValue(req.Body, es.Key)
+	default:
+		return ""
+	}
+}
+
+// envVarName ensures the env var name has the HOOKRUN_ prefix to avoid conflicts.
+func envVarName(userInput string) string {
+	name := strings.ToUpper(userInput)
+	if strings.HasPrefix(name, "HOOKRUN_") {
+		return name
+	}
+	return "HOOKRUN_" + name
 }
 
 // ParseRequest extracts RequestData from an HTTP request.

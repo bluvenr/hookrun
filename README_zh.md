@@ -87,7 +87,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
 - **策略继承** — 文件级 → 规则级逐层覆盖
 - **文件级过滤** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
-- **参数传递** — 模板变量（`{{.body.ref}}`）和 `pass_args` 将请求数据注入命令
+- **参数传递** — 模板变量（`{{.body.ref}}`）、`pass_args` 和环境变量注入（`env_from`）将请求数据传入命令/脚本
 - **Webhook 转发** — 将 Webhook 负载转发到其他服务，支持模板构建 Body、Header 白名单转发、`{{.raw_body}}` 原始数据注入
 - **热重载** — 运行中自动重载配置，无需重启服务
 - **日志管理** — Daily/Single 双模式，自动清理，支持规则级独立日志
@@ -402,6 +402,15 @@ actions:
     args: ["production"]
     timeout: 300
     isolate: true
+    # env_from：将请求数据注入为环境变量（自动添加 HOOKRUN_ 前缀）
+    env_from:
+      - source: "body"
+        key: "ref"
+        env: "GIT_REF"            # → $HOOKRUN_GIT_REF
+      - source: "header"
+        key: "X-GitHub-Event"
+        env: "GITHUB_EVENT"       # → $HOOKRUN_GITHUB_EVENT
+    # 默认环境变量始终可用：$HOOKRUN_RAW_BODY、$HOOKRUN_TRIGGER_IP
   - type: "command"
     cmd: "deploy.sh"
     retry:                      # 失败时指数退避重试

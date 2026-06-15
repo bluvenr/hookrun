@@ -96,6 +96,13 @@ type PassArg struct {
 	Key    string `yaml:"key"`    // field name or JSON path for body
 }
 
+// EnvSource defines a parameter to extract from the request and inject as an environment variable.
+type EnvSource struct {
+	Source string `yaml:"source"` // "header" | "query" | "body"
+	Key    string `yaml:"key"`    // field name or JSON path for body
+	Env    string `yaml:"env"`    // env var suffix (HOOKRUN_ prefix auto-applied)
+}
+
 // RetryConfig holds retry settings for an action.
 type RetryConfig struct {
 	MaxAttempts     int `yaml:"max_attempts"`     // total attempts including first, must >= 1
@@ -109,6 +116,7 @@ type Action struct {
 	Path            string       `yaml:"path,omitempty"`      // for type "script"
 	Args            []string     `yaml:"args,omitempty"`      // for type "script"
 	PassArgs        []PassArg    `yaml:"pass_args,omitempty"` // extract from request and append as arguments
+	EnvFrom         []EnvSource  `yaml:"env_from,omitempty"`  // extract from request and inject as env vars
 	Timeout         int          `yaml:"timeout,omitempty"`   // seconds, 0 = no limit
 	Isolate         bool         `yaml:"isolate,omitempty"`
 	ContinueOnError bool         `yaml:"continue_on_error,omitempty"`
@@ -346,6 +354,22 @@ func (p *PassArg) Validate(ruleName string, actionIndex, argIndex int) error {
 	return nil
 }
 
+// Validate checks an EnvSource.
+func (es *EnvSource) Validate(ruleName string, actionIndex, envIndex int) error {
+	prefix := fmt.Sprintf("rule '%s' action[%d] env_from[%d]", ruleName, actionIndex, envIndex)
+	validSources := map[string]bool{"header": true, "query": true, "body": true}
+	if !validSources[es.Source] {
+		return fmt.Errorf("%s: source must be 'header', 'query', or 'body', got '%s'", prefix, es.Source)
+	}
+	if es.Key == "" {
+		return fmt.Errorf("%s: 'key' is required", prefix)
+	}
+	if es.Env == "" {
+		return fmt.Errorf("%s: 'env' is required", prefix)
+	}
+	return nil
+}
+
 // Validate checks an Action.
 func (a *Action) Validate(ruleName string, index int) error {
 	prefix := fmt.Sprintf("rule '%s' action[%d]", ruleName, index)
@@ -375,6 +399,11 @@ func (a *Action) Validate(ruleName string, index int) error {
 	}
 	for i, pa := range a.PassArgs {
 		if err := pa.Validate(ruleName, index, i); err != nil {
+			return err
+		}
+	}
+	for i, es := range a.EnvFrom {
+		if err := es.Validate(ruleName, index, i); err != nil {
 			return err
 		}
 	}

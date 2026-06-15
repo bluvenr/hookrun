@@ -33,7 +33,7 @@ func TestActionResult_Success_FalseOnExitCode(t *testing.T) {
 // --- ExecuteCommand: success ---
 
 func TestExecuteCommand_EchoHello(t *testing.T) {
-	result := ExecuteCommand("echo hello", 10, false)
+	result := ExecuteCommand("echo hello", 10, false, nil)
 	if !result.Success() {
 		t.Fatalf("echo should succeed: %v", result.Error)
 	}
@@ -58,7 +58,7 @@ func TestExecuteCommand_ExitCode1(t *testing.T) {
 	} else {
 		cmd = "exit 1"
 	}
-	result := ExecuteCommand(cmd, 10, false)
+	result := ExecuteCommand(cmd, 10, false, nil)
 	if result.Success() {
 		t.Error("exit 1 should not be success")
 	}
@@ -74,7 +74,7 @@ func TestExecuteCommand_ExitCode42(t *testing.T) {
 	} else {
 		cmd = "exit 42"
 	}
-	result := ExecuteCommand(cmd, 10, false)
+	result := ExecuteCommand(cmd, 10, false, nil)
 	if result.ExitCode != 42 {
 		t.Errorf("expected exit code 42, got %d", result.ExitCode)
 	}
@@ -89,7 +89,7 @@ func TestExecuteCommand_Timeout(t *testing.T) {
 	} else {
 		cmd = "sleep 10"
 	}
-	result := ExecuteCommand(cmd, 1, false) // 1 second timeout
+	result := ExecuteCommand(cmd, 1, false, nil) // 1 second timeout
 	if result.Success() {
 		t.Error("timed out command should not be success")
 	}
@@ -113,7 +113,7 @@ func TestExecuteCommand_HookrunEnvVar(t *testing.T) {
 	} else {
 		cmd = "echo $HOOKRUN"
 	}
-	result := ExecuteCommand(cmd, 10, false)
+	result := ExecuteCommand(cmd, 10, false, nil)
 	if !result.Success() {
 		t.Fatalf("echo env var should succeed: %v", result.Error)
 	}
@@ -132,7 +132,7 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 	} else {
 		cmd = "echo errormsg >&2"
 	}
-	result := ExecuteCommand(cmd, 10, false)
+	result := ExecuteCommand(cmd, 10, false, nil)
 	// On some systems this still exits 0; we just check stderr is captured
 	if !strings.Contains(result.Stderr, "errormsg") {
 		t.Errorf("stderr should contain 'errormsg', got '%s'", result.Stderr)
@@ -142,7 +142,7 @@ func TestExecuteCommand_StderrCapture(t *testing.T) {
 // --- ExecuteCommand: invalid command ---
 
 func TestExecuteCommand_InvalidCommand(t *testing.T) {
-	result := ExecuteCommand("nonexistent_command_xyz_12345", 10, false)
+	result := ExecuteCommand("nonexistent_command_xyz_12345", 10, false, nil)
 	if result.Success() {
 		t.Error("nonexistent command should fail")
 	}
@@ -169,7 +169,7 @@ func TestExecuteScript_NoArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := ExecuteScript(scriptPath, nil, 10, false)
+	result := ExecuteScript(scriptPath, nil, 10, false, nil)
 	if !result.Success() {
 		t.Fatalf("script should succeed: %v", result.Error)
 	}
