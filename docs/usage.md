@@ -131,7 +131,7 @@ hookrun version
 Output:
 
 ```
-HookRun v1.1.0
+HookRun v1.1.2
 Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64
@@ -184,7 +184,24 @@ GET /health
 Returns:
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
+```
+
+### Relay Registry API
+
+Available only when `server.relay_registry_token` is configured (see [Configuration Reference](configuration.md#serverrelay_registry_token--dynamic-target-discovery)).
+
+```
+POST   /api/relay/register   # Register or refresh a target
+DELETE /api/relay/register   # Unregister a target
+GET    /api/relay/targets    # List all registered targets
+```
+
+All registry API requests require the Bearer token:
+
+```bash
+curl -H "Authorization: Bearer your-registry-secret" \
+     http://main-hookrun:9000/api/relay/targets
 ```
 
 ---
@@ -265,6 +282,50 @@ When `allow_all: false` and a request is sent to `/webhook`:
   "message": "Base route iteration is disabled, please specify target: /webhook/{name}"
 }
 ```
+
+### Relay Registry — Register (200)
+
+```json
+{
+  "status": "registered",
+  "targets_count": 3
+}
+```
+
+### Relay Registry — Unregister (200)
+
+```json
+{
+  "status": "unregistered",
+  "targets_count": 2
+}
+```
+
+### Relay Registry — List Targets (200)
+
+```json
+{
+  "targets": [
+    {
+      "url": "http://10.0.0.5:9000/webhook/deploy-app",
+      "tags": ["web", "prod"],
+      "ttl": 120,
+      "last_seen": "2026-06-11T10:00:00Z",
+      "expires_at": "2026-06-11T10:02:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### Relay Registry — Errors
+
+| Code | Meaning |
+|------|--------|
+| `401` | Missing or invalid Bearer token |
+| `405` | Method not allowed |
+| `429` | Registry is full (`max_registry_entries` reached) |
+| `503` | Relay registry not enabled (no `relay_registry_token` configured) |
 
 ---
 
@@ -401,6 +462,84 @@ POST /webhook/frontend
 POST /webhook/backend
 POST /webhook/api
 ```
+
+### Scenario 6: Multi-Server Relay Deployment
+
+Forward webhooks from a central HookRun to multiple downstream instances using static targets and dynamic tag matching:
+
+```yaml
+# Upstream (main HookRun) — hooks/deploy-app.yaml
+name: "deploy-app"
+execution:
+  policy: "block"
+rules:
+  - name: "relay-to-servers"
+    filters:
+      - type: "body"
+        key: "ref"
+        operator: "regex"
+        value: "refs/heads/main"
+    actions:
+      - type: "relay"
+        relay:
+          targets:
+            - url: "http://10.0.0.2:9000/webhook/deploy-app"   # static target
+              token: "relay-secret-B"
+            - tag: "prod"                                      # dynamic: all registered targets with "prod" tag
+          forward_headers:
+            - "X-GitHub-Event"
+          timeout: 30
+          max_relay_hops: 3
+```
+
+```yaml
+# Upstream config.yaml — enable relay registry for dynamic discovery
+server:
+  port: 9000
+  relay_registry_token: "your-registry-secret"
+  max_relay_ttl: 300
+  max_registry_entries: 100
+```
+
+Downstream instances auto-register on startup and maintain heartbeat:
+
+```yaml
+# Downstream (10.0.0.2) config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"
+  url: "http://10.0.0.2:9000/webhook/deploy-app"
+  token: "relay-secret-B"
+  registry_token: "your-registry-secret"
+  tags: ["prod"]
+  ttl: 120
+```
+
+### Scenario 7: Self-Registering Relay Client
+
+A downstream HookRun instance auto-registers with an upstream on startup and sends periodic heartbeats. No manual registration needed:
+
+```yaml
+# Downstream config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"          # upstream URL (required)
+  url: "http://10.0.0.5:9000/webhook/deploy-app" # local reachable URL
+  token: "my-auth-token"                         # auth token for relay forwarding
+  registry_token: "your-registry-secret"         # registry API Bearer token
+  tags: ["web", "prod"]                          # tags for target matching
+  ttl: 120                                       # TTL in seconds
+  webhook_path: "/webhook/deploy-app"            # used for URL auto-detection
+```
+
+- On startup, the client sends `POST /api/relay/register` to the upstream
+- Heartbeat is sent every `ttl / 3` seconds to keep the registration alive
+- On graceful shutdown, the client sends `DELETE /api/relay/register` to unregister
+- If `url` is omitted, it is auto-detected from local IP + port + `webhook_path`
 
 ---
 

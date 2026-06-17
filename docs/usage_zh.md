@@ -131,7 +131,7 @@ hookrun version
 输出：
 
 ```
-HookRun v1.1.0
+HookRun v1.1.2
 Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64
@@ -184,7 +184,24 @@ GET /health
 返回：
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
+```
+
+### Relay Registry API
+
+仅在 `server.relay_registry_token` 已配置时可用（详见[配置参考](configuration_zh.md#serverrelay_registrytoken--动态目标发现)）。
+
+```
+POST   /api/relay/register   # 注册或刷新目标
+DELETE /api/relay/register   # 注销目标
+GET    /api/relay/targets    # 列出所有已注册目标
+```
+
+所有 Registry API 请求需携带 Bearer Token：
+
+```bash
+curl -H "Authorization: Bearer your-registry-secret" \
+     http://main-hookrun:9000/api/relay/targets
 ```
 
 ---
@@ -265,6 +282,50 @@ GET /health
   "message": "Base route iteration is disabled, please specify target: /webhook/{name}"
 }
 ```
+
+### Relay Registry — 注册（200）
+
+```json
+{
+  "status": "registered",
+  "targets_count": 3
+}
+```
+
+### Relay Registry — 注销（200）
+
+```json
+{
+  "status": "unregistered",
+  "targets_count": 2
+}
+```
+
+### Relay Registry — 列出目标（200）
+
+```json
+{
+  "targets": [
+    {
+      "url": "http://10.0.0.5:9000/webhook/deploy-app",
+      "tags": ["web", "prod"],
+      "ttl": 120,
+      "last_seen": "2026-06-11T10:00:00Z",
+      "expires_at": "2026-06-11T10:02:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### Relay Registry — 错误
+
+| 状态码 | 含义 |
+|--------|------|
+| `401` | Bearer Token 缺失或无效 |
+| `405` | 方法不允许 |
+| `429` | 注册池已满（达到 `max_registry_entries` 上限） |
+| `503` | Relay Registry 未启用（未配置 `relay_registry_token`） |
 
 ---
 
@@ -401,6 +462,84 @@ POST /webhook/frontend
 POST /webhook/backend
 POST /webhook/api
 ```
+
+### 场景 6：多服务器 Relay 部署
+
+通过静态目标和动态 Tag 匹配，将 Webhook 从中心 HookRun 转发到多个下游实例：
+
+```yaml
+# 上游（主 HookRun）— hooks/deploy-app.yaml
+name: "deploy-app"
+execution:
+  policy: "block"
+rules:
+  - name: "relay-to-servers"
+    filters:
+      - type: "body"
+        key: "ref"
+        operator: "regex"
+        value: "refs/heads/main"
+    actions:
+      - type: "relay"
+        relay:
+          targets:
+            - url: "http://10.0.0.2:9000/webhook/deploy-app"   # 静态目标
+              token: "relay-secret-B"
+            - tag: "prod"                                      # 动态：所有带 "prod" 标签的已注册目标
+          forward_headers:
+            - "X-GitHub-Event"
+          timeout: 30
+          max_relay_hops: 3
+```
+
+```yaml
+# 上游 config.yaml — 启用 Relay Registry 实现动态发现
+server:
+  port: 9000
+  relay_registry_token: "your-registry-secret"
+  max_relay_ttl: 300
+  max_registry_entries: 100
+```
+
+下游实例启动时自动注册并维持心跳：
+
+```yaml
+# 下游（10.0.0.2）config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"
+  url: "http://10.0.0.2:9000/webhook/deploy-app"
+  token: "relay-secret-B"
+  registry_token: "your-registry-secret"
+  tags: ["prod"]
+  ttl: 120
+```
+
+### 场景 7：自注册 Relay 客户端
+
+下游 HookRun 实例启动时自动向上游注册并发送周期性心跳，无需手动操作：
+
+```yaml
+# 下游 config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"          # 上游 URL（必填）
+  url: "http://10.0.0.5:9000/webhook/deploy-app" # 本地可达 URL
+  token: "my-auth-token"                         # Relay 转发时的认证 Token
+  registry_token: "your-registry-secret"         # Registry API Bearer Token
+  tags: ["web", "prod"]                          # 目标匹配标签
+  ttl: 120                                       # TTL（秒）
+  webhook_path: "/webhook/deploy-app"            # 用于 URL 自动探测
+```
+
+- 启动时自动发送 `POST /api/relay/register` 到上游
+- 每 `ttl / 3` 秒发送心跳保活
+- 优雅关闭时发送 `DELETE /api/relay/register` 注销
+- 若省略 `url`，则从本地 IP + 端口 + `webhook_path` 自动探测
 
 ---
 
