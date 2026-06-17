@@ -381,7 +381,7 @@ rules:
 
 ```yaml
 actions:
-  - type: "command"            # "command" | "script" | "webhook"
+  - type: "command"            # "command" | "script" | "webhook" | "relay"
     cmd: "echo hello"
     timeout: 60                # 超时秒数
     isolate: false             # 是否子进程隔离
@@ -424,6 +424,16 @@ actions:
     forward_headers: ["X-GitHub-Event"]   # 白名单转发指定 Header
     body: '{"event":"{{.header.X-GitHub-Event}}","payload":{{.raw_body}}}'
     timeout: 30
+  - type: "relay"                  # 中转到其他 HookRun 实例
+    relay:
+      targets:
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+          token: "relay-secret-B"
+        - url: "http://10.0.0.3:9000/webhook/deploy-app"
+          token: "relay-secret-C"
+      forward_headers: ["X-GitHub-Event"]
+      timeout: 30
+      max_relay_hops: 3
 ```
 
 ### 日志（Logging）

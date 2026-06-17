@@ -321,7 +321,7 @@ Actions execute **sequentially** in the order defined.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `type` | string | Yes | — | `"command"`, `"script"`, or `"webhook"` |
+| `type` | string | Yes | — | `"command"`, `"script"`, `"webhook"`, or `"relay"` |
 | `cmd` | string | If command | — | Shell command to execute (supports template variables) |
 | `path` | string | If script | — | Script file path (supports template variables) |
 | `args` | array | No | `[]` | Arguments for script (supports template variables) |
@@ -338,6 +338,7 @@ Actions execute **sequentially** in the order defined.
 | `command` | Inline shell command | `cmd` |
 | `script` | External script file | `path` |
 | `webhook` | HTTP request to external URL | `url` |
+| `relay` | Forward request to multiple HookRun instances | `relay.targets` |
 
 #### Platform Behavior
 
@@ -531,6 +532,78 @@ echo "From: $HOOKRUN_TRIGGER_IP"       # → 192.30.252.0
 ```
 
 > **Note**: If `env` already starts with `HOOKRUN_`, the prefix is not duplicated.
+
+#### Relay Action — Instance-to-Instance Forwarding
+
+The `relay` type forwards the original webhook request body to multiple HookRun instances. Useful for multi-server deployments, multi-environment fan-out, and network isolation scenarios.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `targets` | array | Yes | — | List of targets (each with `url` and optional `token`) |
+| `forward_headers` | array | No | `[]` | Whitelist of original headers to forward |
+| `max_relay_hops` | int | No | `3` | Anti-loop limit (0 = use default 3) |
+| `timeout` | int | No | `30` | Per-target timeout in seconds |
+
+**Target config**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Target HookRun instance URL |
+| `token` | string | No | Auth token for downstream |
+
+```yaml
+actions:
+  - type: "relay"
+    relay:
+      targets:
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+          token: "relay-secret-B"
+        - url: "http://10.0.0.3:9000/webhook/deploy-app"
+          token: "relay-secret-C"
+      forward_headers:
+        - "X-GitHub-Event"
+      timeout: 30
+      max_relay_hops: 3
+```
+
+**Auto Headers** — each relay request automatically includes:
+
+| Header | Value |
+|--------|-------|
+| `X-HookRun-Relay` | `true` |
+| `X-HookRun-Relay-From` | Sender IP |
+| `X-HookRun-Request-ID` | Unique request identifier |
+| `X-HookRun-Relay-Hops` | Current hop count + 1 |
+| `X-HookRun-Relay-Token` | Target's configured token |
+| `X-HookRun-Source` | `HookRun/v<version>` |
+
+**Anti-loop**: `X-HookRun-Relay-Hops` increments by 1 at each hop. When hops reach `max_relay_hops`, relay is rejected to prevent infinite loops.
+
+**Idempotent Deduplication**: Downstream instances can configure a dedup window to prevent duplicate execution from retries:
+
+```yaml
+# Downstream HookRun instance config
+name: "deploy-app"
+auth:
+  token:
+    source: "header"
+    key: "X-HookRun-Relay-Token"
+    value: "relay-secret-B"
+deduplicate:
+  enabled: true
+  window_seconds: 600    # same Request-ID only triggers once within 10 minutes
+
+rules:
+  - name: "deploy"
+    actions:
+      - type: "command"
+        cmd: "cd /var/www/app && git pull && npm run build"
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enabled` | bool | No | `false` | Enable deduplication |
+| `window_seconds` | int | Required when enabled | `300` | Dedup window in seconds |
 
 #### Example
 

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"crypto/hmac"
+	crand "crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -41,6 +42,8 @@ type RequestData struct {
 	BodyRaw   string
 	BodyBytes []byte // raw body bytes for HMAC signature verification
 	IP        string
+	RequestID string // unique request identifier (generated or inherited from relay)
+	RelayHops int    // current relay hop count (parsed from X-HookRun-Relay-Hops)
 }
 
 // Engine is the core webhook processing engine.
@@ -57,10 +60,17 @@ type Engine struct {
 	// Execution state tracking
 	running map[string]bool      // configName/ruleName -> running
 	lastRun map[string]time.Time // configName/ruleName -> last start time
+	// Deduplication cache for relay idempotency
+	dedup     *dedupCache
+	dedupStop chan struct{}
 }
 
 // New creates a new Engine instance.
 func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, logRetention int, logMaxSizeMB int) *Engine {
+	dedup := newDedupCache()
+	stop := make(chan struct{})
+	dedup.startCleanupLoop(60*time.Second, stop)
+
 	return &Engine{
 		configs:      configs,
 		logger:       log,
@@ -70,6 +80,8 @@ func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, log
 		ruleLoggers:  make(map[string]*logger.Logger),
 		running:      make(map[string]bool),
 		lastRun:      make(map[string]time.Time),
+		dedup:        dedup,
+		dedupStop:    stop,
 	}
 }
 
@@ -78,6 +90,13 @@ func (e *Engine) UpdateConfigs(configs []*config.RuleConfig) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.configs = configs
+}
+
+// Stop gracefully shuts down the engine, stopping background goroutines.
+func (e *Engine) Stop() {
+	if e.dedupStop != nil {
+		close(e.dedupStop)
+	}
 }
 
 // getRuleLogger returns (or creates) a rule-level logger for the given config.
@@ -163,6 +182,22 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 	// Step 1.5: Check file-level filters (AND with rule-level, short-circuit)
 	if len(cfg.Filters) > 0 && !e.matchFilters(cfg.Filters, req) {
 		return nil // file-level filters failed, skip all rules in this config
+	}
+
+	// Step 1.6: Deduplication check (prevent relay-triggered duplicates)
+	if cfg.Deduplicate != nil && cfg.Deduplicate.Enabled && req.RequestID != "" {
+		window := time.Duration(cfg.Deduplicate.WindowSeconds) * time.Second
+		if window == 0 {
+			window = 300 * time.Second // default 5 minutes
+		}
+		if e.dedup.IsDuplicate(req.RequestID, window) {
+			log.Info("Duplicate request detected (id=%s), skipping config '%s'", req.RequestID, cfg.Name)
+			return []Response{{
+				Code:    200,
+				Message: "Deduplicated, request already processed",
+				Config:  cfg.Name,
+			}}
+		}
 	}
 
 	for _, rule := range cfg.Rules {
@@ -589,6 +624,8 @@ func (e *Engine) executeSingleAction(action *config.Action, req *RequestData, co
 		whResult := e.executeWebhook(action, req, configName, ruleName, log)
 		log.Info("[%s/%s] Webhook %s %s -> HTTP %d (%v)", configName, ruleName, action.Method, action.URL, whResult.StatusCode, whResult.Duration)
 		return whResult.toActionResult()
+	case "relay":
+		return e.executeRelay(action, req, configName, ruleName, log)
 	default:
 		log.Error("[%s/%s] Unknown action type: %s", configName, ruleName, action.Type)
 		return &executor.ActionResult{ExitCode: 1, Error: fmt.Errorf("unknown action type: %s", action.Type)}
@@ -788,5 +825,26 @@ func ParseRequest(r *http.Request) (*RequestData, error) {
 		}
 	}
 
+	// Generate or inherit Request-ID for idempotency
+	if existingID, ok := data.Headers["x-hookrun-request-id"]; ok && existingID != "" {
+		data.RequestID = existingID // inherit from relay sender
+	} else {
+		data.RequestID = generateRequestID()
+	}
+
+	// Parse relay hop count
+	if hopsStr := data.Headers["x-hookrun-relay-hops"]; hopsStr != "" {
+		if hops, err := strconv.Atoi(hopsStr); err == nil {
+			data.RelayHops = hops
+		}
+	}
+
 	return data, nil
+}
+
+// generateRequestID creates a unique request identifier: timestamp-8hexchars.
+func generateRequestID() string {
+	b := make([]byte, 4)
+	_, _ = crand.Read(b)
+	return fmt.Sprintf("%d-%s", time.Now().UnixMilli(), hex.EncodeToString(b))
 }

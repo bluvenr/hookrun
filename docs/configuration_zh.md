@@ -321,7 +321,7 @@ log:
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `type` | string | 是 | — | `"command"`、`"script"` 或 `"webhook"` |
+| `type` | string | 是 | — | `"command"`、`"script"`、`"webhook"` 或 `"relay"` |
 | `cmd` | string | command 时必填 | — | Shell 命令（支持模板变量） |
 | `path` | string | script 时必填 | — | 脚本文件路径（支持模板变量） |
 | `args` | array | 否 | `[]` | 脚本参数（支持模板变量） |
@@ -338,6 +338,7 @@ log:
 | `command` | 内联 Shell 命令 | `cmd` |
 | `script` | 外部脚本文件 | `path` |
 | `webhook` | 向外部 URL 发送 HTTP 请求 | `url` |
+| `relay` | 向多个 HookRun 实例转发请求 | `relay.targets` |
 
 #### 平台行为
 
@@ -531,6 +532,78 @@ echo "From: $HOOKRUN_TRIGGER_IP"       # → 192.30.252.0
 ```
 
 > **注意**：如果 `env` 已经以 `HOOKRUN_` 开头，不会重复添加前缀。
+
+#### Relay 动作 — 实例间中转
+
+`relay` 类型将当前 webhook 请求原封不动地转发给多个 HookRun 实例，适用于多服务器部署、多环境联动、网络隔离等场景。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `targets` | array | 是 | — | 目标列表（每个包含 `url` 和可选 `token`） |
+| `forward_headers` | array | 否 | `[]` | 白名单转发原始请求 headers |
+| `max_relay_hops` | int | 否 | `3` | 防环上限（0 = 使用默认值 3） |
+| `timeout` | int | 否 | `30` | 单目标超时（秒） |
+
+**目标配置**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `url` | string | 是 | 目标 HookRun 实例 URL |
+| `token` | string | 否 | 下游认证 token |
+
+```yaml
+actions:
+  - type: "relay"
+    relay:
+      targets:
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+          token: "relay-secret-B"
+        - url: "http://10.0.0.3:9000/webhook/deploy-app"
+          token: "relay-secret-C"
+      forward_headers:
+        - "X-GitHub-Event"
+      timeout: 30
+      max_relay_hops: 3
+```
+
+**自动 Headers** — 每个 relay 请求自动携带：
+
+| Header | 值 |
+|--------|----|
+| `X-HookRun-Relay` | `true` |
+| `X-HookRun-Relay-From` | 发送方 IP |
+| `X-HookRun-Request-ID` | 唯一请求标识 |
+| `X-HookRun-Relay-Hops` | 当前跳数 + 1 |
+| `X-HookRun-Relay-Token` | 目标配置的 token |
+| `X-HookRun-Source` | `HookRun/v<version>` |
+
+**防环机制**：`X-HookRun-Relay-Hops` 每跳 +1，当跳数达到 `max_relay_hops` 时自动拒绝转发，防止无限循环。
+
+**幂等性去重**：下游实例可配置去重窗口，防止因重试导致的重复执行：
+
+```yaml
+# 下游 HookRun 实例的配置文件
+name: "deploy-app"
+auth:
+  token:
+    source: "header"
+    key: "X-HookRun-Relay-Token"
+    value: "relay-secret-B"
+deduplicate:
+  enabled: true
+  window_seconds: 600    # 10分钟内相同 Request-ID 只执行一次
+
+rules:
+  - name: "deploy"
+    actions:
+      - type: "command"
+        cmd: "cd /var/www/app && git pull && npm run build"
+```
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `enabled` | bool | 否 | `false` | 是否启用去重 |
+| `window_seconds` | int | 启用时必填 | `300` | 去重窗口（秒） |
 
 #### 示例
 

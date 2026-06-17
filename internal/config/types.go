@@ -35,14 +35,15 @@ type RuleLogConfig struct {
 
 // RuleConfig represents a single hooks/*.yaml file structure.
 type RuleConfig struct {
-	Name      string           `yaml:"name"`
-	Auth      *AuthConfig      `yaml:"auth,omitempty"`
-	Execution *ExecutionConfig `yaml:"execution,omitempty"`
-	Filters   []Filter         `yaml:"filters,omitempty"` // file-level global filters (AND with rule-level)
-	Log       *RuleLogConfig   `yaml:"log,omitempty"`     // rule-level independent log file
-	Rules     []Rule           `yaml:"rules"`
-	FilePath  string           `yaml:"-"` // source file path (not from YAML)
-	FileName  string           `yaml:"-"` // file name without extension (used for routing)
+	Name        string             `yaml:"name"`
+	Auth        *AuthConfig        `yaml:"auth,omitempty"`
+	Execution   *ExecutionConfig   `yaml:"execution,omitempty"`
+	Filters     []Filter           `yaml:"filters,omitempty"`     // file-level global filters (AND with rule-level)
+	Log         *RuleLogConfig     `yaml:"log,omitempty"`         // rule-level independent log file
+	Deduplicate *DeduplicateConfig `yaml:"deduplicate,omitempty"` // file-level deduplication settings
+	Rules       []Rule             `yaml:"rules"`
+	FilePath    string             `yaml:"-"` // source file path (not from YAML)
+	FileName    string             `yaml:"-"` // file name without extension (used for routing)
 }
 
 // AuthConfig holds authentication settings (AND relationship).
@@ -109,9 +110,29 @@ type RetryConfig struct {
 	IntervalSeconds int `yaml:"interval_seconds"` // base interval in seconds, must >= 0
 }
 
+// RelayTarget represents a single relay destination.
+type RelayTarget struct {
+	URL   string `yaml:"url"`   // target URL (e.g. http://10.0.0.2:9000/webhook/deploy-app)
+	Token string `yaml:"token"` // auth token injected as X-HookRun-Relay-Token header
+}
+
+// RelayConfig holds relay action settings for forwarding webhooks to other HookRun instances.
+type RelayConfig struct {
+	Targets        []RelayTarget `yaml:"targets"`                   // destination list
+	ForwardHeaders []string      `yaml:"forward_headers,omitempty"` // whitelist of original headers to forward
+	MaxRelayHops   int           `yaml:"max_relay_hops,omitempty"`  // anti-loop limit (default 3)
+	Timeout        int           `yaml:"timeout,omitempty"`         // per-target timeout in seconds
+}
+
+// DeduplicateConfig holds deduplication settings for preventing duplicate webhook execution.
+type DeduplicateConfig struct {
+	Enabled       bool `yaml:"enabled"`        // enable deduplication
+	WindowSeconds int  `yaml:"window_seconds"` // dedup window in seconds (default 300)
+}
+
 // Action represents a command, script, or webhook to execute.
 type Action struct {
-	Type            string       `yaml:"type"`                // "command" | "script" | "webhook"
+	Type            string       `yaml:"type"`                // "command" | "script" | "webhook" | "relay"
 	Cmd             string       `yaml:"cmd,omitempty"`       // for type "command"
 	Path            string       `yaml:"path,omitempty"`      // for type "script"
 	Args            []string     `yaml:"args,omitempty"`      // for type "script"
@@ -121,6 +142,7 @@ type Action struct {
 	Isolate         bool         `yaml:"isolate,omitempty"`
 	ContinueOnError bool         `yaml:"continue_on_error,omitempty"`
 	Retry           *RetryConfig `yaml:"retry,omitempty"` // retry settings (nil = no retry)
+	Relay           *RelayConfig `yaml:"relay,omitempty"` // relay action config
 	// Webhook-specific fields
 	URL            string            `yaml:"url,omitempty"`             // target URL (supports templates)
 	Method         string            `yaml:"method,omitempty"`          // HTTP method, default "POST"
@@ -217,6 +239,13 @@ func (r *RuleConfig) Validate() error {
 	if r.Log != nil {
 		if r.Log.Path == "" {
 			return fmt.Errorf("config '%s': log.path is required when log is configured", r.Name)
+		}
+	}
+
+	// Validate file-level deduplicate
+	if r.Deduplicate != nil {
+		if err := r.Deduplicate.Validate(r.Name); err != nil {
+			return err
 		}
 	}
 
@@ -370,6 +399,38 @@ func (es *EnvSource) Validate(ruleName string, actionIndex, envIndex int) error 
 	return nil
 }
 
+// Validate checks a RelayConfig.
+func (r *RelayConfig) Validate(prefix string) error {
+	if len(r.Targets) == 0 {
+		return fmt.Errorf("%s: 'targets' must not be empty", prefix)
+	}
+	for i, t := range r.Targets {
+		if err := t.Validate(prefix, i); err != nil {
+			return err
+		}
+	}
+	if r.MaxRelayHops < 0 {
+		return fmt.Errorf("%s: 'max_relay_hops' must be >= 0, got %d", prefix, r.MaxRelayHops)
+	}
+	return nil
+}
+
+// Validate checks a RelayTarget.
+func (t *RelayTarget) Validate(prefix string, index int) error {
+	if t.URL == "" {
+		return fmt.Errorf("%s: targets[%d].url is required", prefix, index)
+	}
+	return nil
+}
+
+// Validate checks a DeduplicateConfig.
+func (d *DeduplicateConfig) Validate(configName string) error {
+	if d.Enabled && d.WindowSeconds <= 0 {
+		return fmt.Errorf("config '%s': deduplicate.window_seconds must be > 0 when enabled, got %d", configName, d.WindowSeconds)
+	}
+	return nil
+}
+
 // Validate checks an Action.
 func (a *Action) Validate(ruleName string, index int) error {
 	prefix := fmt.Sprintf("rule '%s' action[%d]", ruleName, index)
@@ -381,6 +442,13 @@ func (a *Action) Validate(ruleName string, index int) error {
 	case "script":
 		if a.Path == "" {
 			return fmt.Errorf("%s: 'path' is required for script type", prefix)
+		}
+	case "relay":
+		if a.Relay == nil {
+			return fmt.Errorf("%s: 'relay' config is required for relay type", prefix)
+		}
+		if err := a.Relay.Validate(prefix); err != nil {
+			return err
 		}
 	case "webhook":
 		if a.URL == "" {
@@ -395,7 +463,7 @@ func (a *Action) Validate(ruleName string, index int) error {
 		}
 		a.Method = strings.ToUpper(a.Method)
 	default:
-		return fmt.Errorf("%s: type must be 'command', 'script', or 'webhook', got '%s'", prefix, a.Type)
+		return fmt.Errorf("%s: type must be 'command', 'script', 'webhook', or 'relay', got '%s'", prefix, a.Type)
 	}
 	for i, pa := range a.PassArgs {
 		if err := pa.Validate(ruleName, index, i); err != nil {

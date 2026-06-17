@@ -22,11 +22,15 @@ func newTestEngine(t *testing.T) *Engine {
 		Console: false,
 	})
 	t.Cleanup(func() { log.Close() })
+	stop := make(chan struct{})
+	t.Cleanup(func() { close(stop) })
 	return &Engine{
 		logger:      log,
 		ruleLoggers: make(map[string]*logger.Logger),
 		running:     make(map[string]bool),
 		lastRun:     make(map[string]time.Time),
+		dedup:       newDedupCache(),
+		dedupStop:   stop,
 	}
 }
 
