@@ -471,6 +471,16 @@
         <div class="feature-title" data-i18n="f9_title">Webhook Action</div>
         <div class="feature-desc" data-i18n-html="f9_desc">Forward payloads to other services with template-based body, header whitelisting, and <code>{{.raw_body}}</code> support.</div>
       </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.07 7.07l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.07-7.07l4.24-4.24"/></svg></div>
+        <div class="feature-title" data-i18n="f10_title">Relay Action</div>
+        <div class="feature-desc" data-i18n="f10_desc">Multi-target relay to other HookRun instances with static targets, dynamic registry, and tag-based discovery.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>
+        <div class="feature-title" data-i18n="f11_title">Failure Retry</div>
+        <div class="feature-desc" data-i18n="f11_desc">Built-in exponential backoff with jitter. Auto-retry failed commands and scripts with configurable attempts.</div>
+      </div>
     </div>
   </div>
 </section>
@@ -524,6 +534,14 @@
         <div class="usecase-code"><span class="ck">actions</span>:
   - <span class="ck">type</span>: <span class="cs">"webhook"</span>
     <span class="ck">url</span>:  <span class="cs">"https://api.example.com/hook"</span></div>
+      </div>
+      <div class="usecase">
+        <div class="usecase-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
+        <div class="usecase-title" data-i18n="uc6_title">Multi-Server Deployment</div>
+        <div class="usecase-desc" data-i18n="uc6_desc">Relay webhook events to multiple downstream HookRun instances with dynamic registry and tag-based discovery.</div>
+        <div class="usecase-code"><span class="ck">relay</span>:
+  <span class="ck">targets</span>:
+    - <span class="ck">tag</span>: <span class="cs">"prod"</span></div>
       </div>
     </div>
     <div class="learn-more"><a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" data-i18n="uc_more" data-i18n-doc="docs/usage">Usage guide and more scenarios &rarr;</a></div>
@@ -634,6 +652,13 @@
             <td data-i18n="comp_retry_wh">No retry support</td>
             <td data-i18n="comp_retry_n8n">Retry on Fail node</td>
             <td data-i18n="comp_retry_hug">Partial (scenario-level)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_relay">Relay</td>
+            <td data-i18n-html="comp_relay_hr">Built-in multi-target + dynamic registry + tag matching</td>
+            <td data-i18n="comp_relay_wh">No relay support</td>
+            <td data-i18n="comp_relay_n8n">Requires HTTP node workflow</td>
+            <td data-i18n="comp_relay_hug">Manual scenario proxy</td>
           </tr>
           <tr>
             <td data-i18n="comp_r_license">License</td>
@@ -827,6 +852,8 @@ const T = {
     f7_title: "Hot Reload", f7_desc: "Reload all YAML configurations at runtime via CLI. No restart, no downtime.",
     f8_title: "High Performance", f8_desc: "Go-native concurrency. One binary covers Linux, macOS, and Windows with zero dependencies.",
     f9_title: "Webhook Action", f9_desc: "Forward payloads to other services with template-based body, header whitelisting, and <code>{{.raw_body}}</code> support.",
+    f10_title: "Relay Action", f10_desc: "Multi-target relay to other HookRun instances with static targets, dynamic registry, and tag-based discovery.",
+    f11_title: "Failure Retry", f11_desc: "Built-in exponential backoff with jitter. Auto-retry failed commands and scripts with configurable attempts.",
     uc_title: "What Can HookRun Do?",
     uc_desc: "From automated deployments to service integration, HookRun turns webhook events into actions.",
     uc1_title: "Git Auto Deploy", uc1_desc: "Push to GitHub or GitLab and your server pulls, builds, and deploys automatically. No manual SSH needed.",
@@ -834,6 +861,7 @@ const T = {
     uc3_title: "Monitoring Alerts", uc3_desc: "Receive alerts from Grafana, Prometheus, or any service and run automated remediation scripts.",
     uc4_title: "Custom Automation", uc4_desc: "Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.",
     uc5_title: "Webhook Forwarding", uc5_desc: "Receive a webhook and forward it to multiple downstream services with custom headers and transformed payloads.",
+    uc6_title: "Multi-Server Deployment", uc6_desc: "Relay webhook events to multiple downstream HookRun instances with dynamic registry and tag-based discovery.",
     uc_more: "Usage guide and more scenarios \u2192",
     why_title: "Why HookRun?",
     why_desc: "Purpose-built for webhook automation. Secure, lightweight, and fully under your control.",
@@ -876,6 +904,7 @@ const T = {
     comp_r_config: "Config Format", comp_config_hr: "YAML (readable, comments supported)", comp_config_wh: "JSON / YAML", comp_config_n8n: "Visual editor / JSON", comp_config_hug: "JSON (agent config)",
     comp_r_health: "Health Check", comp_health_hr: "Built-in <code>/health</code> endpoint", comp_health_wh: "No built-in endpoint", comp_health_n8n: "Has health check", comp_health_hug: "Has health check",
     comp_r_retry: "Retry", comp_retry_hr: "Built-in exponential backoff + jitter", comp_retry_wh: "No retry support", comp_retry_n8n: "Retry on Fail node", comp_retry_hug: "Partial (scenario-level)",
+    comp_r_relay: "Relay", comp_relay_hr: "Built-in multi-target + dynamic registry + tag matching", comp_relay_wh: "No relay support", comp_relay_n8n: "Requires HTTP node workflow", comp_relay_hug: "Manual scenario proxy",
     faq_title: "FAQ",
     faq_desc: "Common questions about HookRun.",
     faq_q1: "How does HookRun compare to adnanh/webhook?",
@@ -907,6 +936,8 @@ const T = {
     f7_title: "热重载", f7_desc: "运行中通过 CLI 热重载所有 YAML 配置，无需重启、零停机。",
     f8_title: "高性能", f8_desc: "Go 原生并发，一个二进制文件覆盖 Linux、macOS、Windows，零运行时依赖。",
     f9_title: "Webhook 转发", f9_desc: "将负载转发到其他服务，支持模板构建 Body、Header 白名单转发和 <code>{{.raw_body}}</code> 原始数据注入。",
+    f10_title: "Relay 中转", f10_desc: "多目标中转到其他 HookRun 实例，支持静态目标、动态注册池和 tag 发现。",
+    f11_title: "失败重试", f11_desc: "内置指数退避 + 随机抖动。命令/脚本执行失败时自动重试，可配置重试次数。",
     feat_more: "完整配置参数参考 \u2192",
     uc_title: "HookRun 能做什么？",
     uc_desc: "从自动化部署到服务集成，HookRun 将 Webhook 事件转化为实际行动。",
@@ -915,6 +946,7 @@ const T = {
     uc3_title: "监控告警响应", uc3_desc: "接收 Grafana、Prometheus 等监控告警，自动执行修复脚本。",
     uc4_title: "自定义自动化", uc4_desc: "任何 HTTP POST 都是触发器。同步数据、发送通知、管理基础设施等。",
     uc5_title: "Webhook 转发", uc5_desc: "接收 Webhook 并将其转发到多个下游服务，支持自定义 Header 和负载转换。",
+    uc6_title: "多服务器部署", uc6_desc: "通过 Relay 将 Webhook 事件分发到多台服务器上的 HookRun 实例，支持动态注册和 tag 发现。",
     uc_more: "使用指南与更多场景 \u2192",
     why_title: "为什么选 HookRun？",
     why_desc: "专为 Webhook 自动化打造。安全、轻巧、完全由你掌控。",
@@ -957,6 +989,7 @@ const T = {
     comp_r_config: "配置格式", comp_config_hr: "YAML（可读性强，支持注释）", comp_config_wh: "JSON / YAML", comp_config_n8n: "可视化编辑器 / JSON", comp_config_hug: "JSON（Agent 配置）",
     comp_r_health: "健康检查", comp_health_hr: "内置 <code>/health</code> 端点", comp_health_wh: "无内置端点", comp_health_n8n: "有健康检查", comp_health_hug: "有健康检查",
     comp_r_retry: "失败重试", comp_retry_hr: "内置指数退避 + 随机抖动", comp_retry_wh: "不支持重试", comp_retry_n8n: "Retry on Fail 节点", comp_retry_hug: "部分支持（场景级）",
+    comp_r_relay: "Relay 中转", comp_relay_hr: "内置多目标 + 动态注册池 + tag 匹配", comp_relay_wh: "不支持中转", comp_relay_n8n: "需搭建 HTTP 节点工作流", comp_relay_hug: "手动配置 Scenario 代理",
     faq_title: "常见问题",
     faq_desc: "关于 HookRun 的常见疑问。",
     faq_q1: "HookRun 与 adnanh/webhook 有什么区别？",

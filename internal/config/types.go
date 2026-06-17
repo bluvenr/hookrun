@@ -7,17 +7,21 @@ import (
 
 // GlobalConfig represents the top-level config.yaml structure.
 type GlobalConfig struct {
-	Server    ServerConfig `yaml:"server"`
-	Log       LogConfig    `yaml:"log"`
-	ConfigDir string       `yaml:"config_dir"`
+	Server      ServerConfig       `yaml:"server"`
+	Log         LogConfig          `yaml:"log"`
+	ConfigDir   string             `yaml:"config_dir"`
+	RelayClient *RelayClientConfig `yaml:"relay_client,omitempty"` // downstream auto-registration
 }
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
-	Port          int    `yaml:"port"`
-	Route         string `yaml:"route"`
-	AllowAll      *bool  `yaml:"allow_all,omitempty"`        // allow /webhook to iterate all configs (default: false)
-	MaxBodySizeMB *int   `yaml:"max_body_size_mb,omitempty"` // max request body in MB, 0 = unlimited (default: 10)
+	Port               int    `yaml:"port"`
+	Route              string `yaml:"route"`
+	AllowAll           *bool  `yaml:"allow_all,omitempty"`            // allow /webhook to iterate all configs (default: false)
+	MaxBodySizeMB      *int   `yaml:"max_body_size_mb,omitempty"`     // max request body in MB, 0 = unlimited (default: 10)
+	RelayRegistryToken string `yaml:"relay_registry_token,omitempty"` // registry API auth token (empty = registry disabled)
+	MaxRelayTTL        int    `yaml:"max_relay_ttl,omitempty"`        // max TTL cap in seconds, 0 = unlimited
+	MaxRegistryEntries int    `yaml:"max_registry_entries,omitempty"` // registry pool capacity (default: 100)
 }
 
 // LogConfig holds logging settings.
@@ -110,10 +114,22 @@ type RetryConfig struct {
 	IntervalSeconds int `yaml:"interval_seconds"` // base interval in seconds, must >= 0
 }
 
+// RelayClientConfig holds downstream auto-registration settings.
+type RelayClientConfig struct {
+	Upstream      string   `yaml:"upstream"`                 // upstream HookRun URL (required)
+	URL           string   `yaml:"url,omitempty"`            // local reachable URL (auto-detected if empty)
+	Token         string   `yaml:"token,omitempty"`          // downstream auth token for relay forwarding
+	RegistryToken string   `yaml:"registry_token,omitempty"` // registry API auth token
+	Tags          []string `yaml:"tags"`                     // tag list for target matching
+	TTL           int      `yaml:"ttl,omitempty"`            // suggested TTL in seconds
+	WebhookPath   string   `yaml:"webhook_path,omitempty"`   // webhook path for URL auto-detection
+}
+
 // RelayTarget represents a single relay destination.
 type RelayTarget struct {
-	URL   string `yaml:"url"`   // target URL (e.g. http://10.0.0.2:9000/webhook/deploy-app)
-	Token string `yaml:"token"` // auth token injected as X-HookRun-Relay-Token header
+	URL   string `yaml:"url,omitempty"`   // static target URL
+	Token string `yaml:"token,omitempty"` // auth token injected as X-HookRun-Relay-Token header
+	Tag   string `yaml:"tag,omitempty"`   // dynamic target tag for registry matching
 }
 
 // RelayConfig holds relay action settings for forwarding webhooks to other HookRun instances.
@@ -189,6 +205,12 @@ func (g *GlobalConfig) Validate() error {
 	if *g.Server.MaxBodySizeMB < 0 {
 		return fmt.Errorf("server.max_body_size_mb must be >= 0, got %d", *g.Server.MaxBodySizeMB)
 	}
+	if g.Server.MaxRegistryEntries < 0 {
+		return fmt.Errorf("server.max_registry_entries must be >= 0, got %d", g.Server.MaxRegistryEntries)
+	}
+	if g.Server.MaxRelayTTL < 0 {
+		return fmt.Errorf("server.max_relay_ttl must be >= 0, got %d", g.Server.MaxRelayTTL)
+	}
 	if g.Log.Path == "" {
 		g.Log.Path = "./logs"
 	}
@@ -204,6 +226,16 @@ func (g *GlobalConfig) Validate() error {
 	if g.ConfigDir == "" {
 		g.ConfigDir = "./hooks"
 	}
+	// Default MaxRegistryEntries to 100
+	if g.Server.MaxRegistryEntries == 0 {
+		g.Server.MaxRegistryEntries = 100
+	}
+	// Validate relay_client
+	if g.RelayClient != nil {
+		if err := g.RelayClient.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -213,6 +245,16 @@ func (s *ServerConfig) IsAllowAll() bool {
 		return false
 	}
 	return *s.AllowAll
+}
+
+// IsRelayRegistryEnabled returns true when the relay registry is activated.
+func (s *ServerConfig) IsRelayRegistryEnabled() bool {
+	return s.RelayRegistryToken != ""
+}
+
+// HasRelayClient returns true when relay_client is configured.
+func (g *GlobalConfig) HasRelayClient() bool {
+	return g.RelayClient != nil && g.RelayClient.Upstream != ""
 }
 
 // Validate checks the RuleConfig for errors.
@@ -415,10 +457,24 @@ func (r *RelayConfig) Validate(prefix string) error {
 	return nil
 }
 
-// Validate checks a RelayTarget.
+// Validate checks a RelayTarget (either url or tag must be set).
 func (t *RelayTarget) Validate(prefix string, index int) error {
-	if t.URL == "" {
-		return fmt.Errorf("%s: targets[%d].url is required", prefix, index)
+	if t.URL == "" && t.Tag == "" {
+		return fmt.Errorf("%s: targets[%d] must have either 'url' or 'tag'", prefix, index)
+	}
+	return nil
+}
+
+// Validate checks a RelayClientConfig.
+func (rc *RelayClientConfig) Validate() error {
+	if rc.Upstream == "" {
+		return fmt.Errorf("relay_client.upstream is required")
+	}
+	if rc.TTL < 0 {
+		return fmt.Errorf("relay_client.ttl must be >= 0, got %d", rc.TTL)
+	}
+	if len(rc.Tags) == 0 {
+		return fmt.Errorf("relay_client.tags must not be empty")
 	}
 	return nil
 }

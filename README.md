@@ -37,6 +37,7 @@ A purpose-built action engine for webhook automation, compared with general-purp
 | **Config Format** | YAML (readable, comments supported) | JSON / YAML | Visual editor / JSON | JSON (agent config) |
 | **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
 | **Retry** | Built-in exponential backoff with jitter | No retry support | Retry on Fail node | Partial (scenario-level) |
+| **Relay** | Built-in multi-target relay + dynamic registry + tag matching | No relay support | Requires HTTP node workflow | Manual scenario proxy setup |
 | **License** | MIT, full freedom | MIT, full freedom | Fair-code (SUL), commercial restrictions | MIT, full freedom |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement
@@ -89,6 +90,8 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **File-Level Filters** — Global constraints applied to all rules, AND with rule-level filters
 - **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands
 - **Webhook Action** — Forward webhook payloads to other services with template-based body, header forwarding, and `{{.raw_body}}` support
+- **Relay Action** — Multi-target relay to other HookRun instances with static targets, dynamic registration pool, and tag-based discovery
+- **Failure Retry** — Built-in exponential backoff with jitter for commands and scripts
 - **Hot Reload** — Reload configs at runtime without restarting
 - **Log Management** — Daily/single mode with auto-cleanup, per-rule independent log files
 - **Health Endpoint** — Built-in `/health` endpoint for monitoring integration (Prometheus, Uptime Kuma, etc.)
@@ -164,6 +167,30 @@ rules:
 ### Custom Automation
 
 Any HTTP POST becomes a trigger. Sync data, send notifications, manage infrastructure, and more.
+
+### Multi-Server Deployment
+
+Relay webhook events from a central HookRun to multiple downstream instances across servers. Use static targets, or let instances self-register with tags for dynamic discovery.
+
+```yaml
+# Upstream: relay to all registered "prod" instances
+- type: "relay"
+  relay:
+    targets:
+      - tag: "prod"
+    forward_headers: ["X-GitHub-Event"]
+    timeout: 30
+```
+
+```yaml
+# Downstream (each server): auto-register with upstream on startup
+# In config.yaml:
+relay_client:
+  upstream: "http://10.0.0.1:9000"
+  registry_token: "shared-registry-secret"
+  tags: ["prod"]
+  ttl: 120
+```
 
 ## Quick Start
 
@@ -427,10 +454,11 @@ actions:
   - type: "relay"                  # relay to other HookRun instances
     relay:
       targets:
-        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"   # static target
           token: "relay-secret-B"
         - url: "http://10.0.0.3:9000/webhook/deploy-app"
           token: "relay-secret-C"
+        - tag: "prod"                                      # dynamic: matches registered instances tagged "prod"
       forward_headers: ["X-GitHub-Event"]
       timeout: 30
       max_relay_hops: 3

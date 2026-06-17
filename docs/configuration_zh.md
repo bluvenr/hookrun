@@ -17,6 +17,9 @@ HookRun 使用两级 YAML 配置：
 | `server.route` | string | `/webhook` | Webhook 基础路由路径 |
 | `server.allow_all` | bool | `false` | 是否允许基础路由 `/webhook` 遍历所有配置文件 |
 | `server.max_body_size_mb` | int | `10` | 请求体大小上限 MB。`0` = 不限制 |
+| `server.relay_registry_token` | string | `""` | 注册池 API 鉴权 token。非空时启用注册池 |
+| `server.max_relay_ttl` | int | `0`（不限） | 注册目标的最大 TTL 上限（秒） |
+| `server.max_registry_entries` | int | `100` | 注册池最大容量 |
 | `log.mode` | string | `daily` | 日志模式：`"daily"`（按天轮转）或 `"single"`（单文件） |
 | `log.path` | string | `./logs` | 日志目录（daily）或基础路径（single） |
 | `log.retention_days` | int | `30` | 日志保留天数（仅 daily 模式） |
@@ -54,6 +57,66 @@ config_dir: "./hooks"
 - `10`（默认）— 超过 10 MB 的请求体返回 HTTP 413
 - `0` — 不限制（谨慎使用）
 - 任意正整数 — 自定义限制（单位：MB）
+
+### `server.relay_registry_token` — 动态目标发现
+
+启用 relay 注册池 API，允许下游 HookRun 实例自动注册。
+
+```yaml
+# 上游（主 HookRun）
+server:
+  port: 9000
+  relay_registry_token: "your-registry-secret"   # 注册 API 鉴权
+  max_relay_ttl: 300                               # TTL 上限 5 分钟
+  max_registry_entries: 100                        # 注册池容量
+```
+
+**注册池 API 端点**（仅当 `relay_registry_token` 非空时可用）：
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| `POST` | `/api/relay/register` | 注册或刷新目标 |
+| `DELETE` | `/api/relay/register` | 注销目标 |
+| `GET` | `/api/relay/targets` | 查看所有已注册目标 |
+
+**注册请求体**（`POST /api/relay/register`）：
+```json
+{
+  "url": "http://10.0.0.5:9000/webhook/deploy-app",
+  "token": "downstream-auth-token",
+  "tags": ["web", "prod"],
+  "ttl": 120
+}
+```
+
+### `relay_client` — 自动注册（下游）
+
+配置下游 HookRun 实例在启动时自动向上游注册，并保持心跳续期：
+
+```yaml
+# 下游 HookRun config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"          # 上游地址（必填）
+  url: "http://10.0.0.5:9000/webhook/deploy-app" # 本机可达 URL（不配则自动推断）
+  token: "my-auth-token"                         # 下游认证 token
+  registry_token: "your-registry-secret"         # 注册 API 鉴权 token
+  tags: ["web", "prod"]                          # 标签（用于动态目标匹配）
+  ttl: 120                                       # TTL（秒）
+  webhook_path: "/webhook/deploy-app"            # 用于 URL 自动推断
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `upstream` | string | 是 | 上游 HookRun 地址 |
+| `url` | string | 否 | 本机可达 URL（不配则从 IP + port + webhook_path 自动推断） |
+| `token` | string | 否 | 上游转发到此实例时使用的认证 token |
+| `registry_token` | string | 否 | 注册 API 的 Bearer token |
+| `tags` | array | 是 | 标签列表（用于动态目标匹配） |
+| `ttl` | int | 否 | 建议 TTL（秒），可能被上游 `max_relay_ttl` 截断 |
+| `webhook_path` | string | 否 | 用于 URL 自动推断的 webhook 路径（默认 `/webhook`） |
 
 ### `log.mode`
 
@@ -548,18 +611,20 @@ echo "From: $HOOKRUN_TRIGGER_IP"       # → 192.30.252.0
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `url` | string | 是 | 目标 HookRun 实例 URL |
+| `url` | string | `url`/`tag` 二选一 | 静态目标 HookRun 实例 URL |
 | `token` | string | 否 | 下游认证 token |
+| `tag` | string | `url`/`tag` 二选一 | 动态目标标签 — 匹配所有包含该标签的已注册实例 |
 
 ```yaml
 actions:
   - type: "relay"
     relay:
       targets:
-        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"   # 静态目标
           token: "relay-secret-B"
         - url: "http://10.0.0.3:9000/webhook/deploy-app"
           token: "relay-secret-C"
+        - tag: "prod"                                      # 动态：匹配所有带 "prod" 标签的已注册实例
       forward_headers:
         - "X-GitHub-Event"
       timeout: 30

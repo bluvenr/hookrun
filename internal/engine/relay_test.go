@@ -418,3 +418,135 @@ func TestRelayResult_Success(t *testing.T) {
 		t.Error("all fail should be Success()=false")
 	}
 }
+
+// --- Tag Resolution ---
+
+func TestResolveRelayTargets_StaticOnly(t *testing.T) {
+	e := newTestEngine(t)
+	targets := []config.RelayTarget{
+		{URL: "http://a:9000/w", Token: "t1"},
+		{URL: "http://b:9000/w", Token: "t2"},
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 2 {
+		t.Errorf("expected 2 static targets, got %d", len(resolved))
+	}
+}
+
+func TestResolveRelayTargets_TagOnly(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Set up registry with some entries
+	reg := NewTargetRegistry(10, 0)
+	reg.Register(RegistryEntry{URL: "http://x:9000/w", Token: "tx", Tags: []string{"prod"}})
+	reg.Register(RegistryEntry{URL: "http://y:9000/w", Token: "ty", Tags: []string{"prod"}})
+	e.registry = reg
+
+	targets := []config.RelayTarget{
+		{Tag: "prod"},
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 2 {
+		t.Errorf("expected 2 targets from tag 'prod', got %d", len(resolved))
+	}
+}
+
+func TestResolveRelayTargets_Mixed(t *testing.T) {
+	e := newTestEngine(t)
+
+	reg := NewTargetRegistry(10, 0)
+	reg.Register(RegistryEntry{URL: "http://x:9000/w", Token: "tx", Tags: []string{"prod"}})
+	reg.Register(RegistryEntry{URL: "http://y:9000/w", Token: "ty", Tags: []string{"prod"}})
+	e.registry = reg
+
+	targets := []config.RelayTarget{
+		{URL: "http://static:9000/w", Token: "ts"},
+		{Tag: "prod"},
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 3 {
+		t.Errorf("expected 3 targets (1 static + 2 dynamic), got %d", len(resolved))
+	}
+	// First should be static
+	if resolved[0].URL != "http://static:9000/w" {
+		t.Errorf("first target should be static, got %s", resolved[0].URL)
+	}
+}
+
+func TestResolveRelayTargets_DedupStaticPriority(t *testing.T) {
+	e := newTestEngine(t)
+
+	// Registry has same URL as static
+	reg := NewTargetRegistry(10, 0)
+	reg.Register(RegistryEntry{URL: "http://a:9000/w", Token: "dynamic-tok", Tags: []string{"prod"}})
+	e.registry = reg
+
+	targets := []config.RelayTarget{
+		{URL: "http://a:9000/w", Token: "static-tok"}, // static takes priority
+		{Tag: "prod"}, // same URL, should be deduped
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 1 {
+		t.Errorf("expected 1 target after dedup, got %d", len(resolved))
+	}
+	if resolved[0].Token != "static-tok" {
+		t.Errorf("static token should take priority, got %s", resolved[0].Token)
+	}
+}
+
+func TestResolveRelayTargets_NoRegistry(t *testing.T) {
+	e := newTestEngine(t)
+	// registry is nil
+
+	targets := []config.RelayTarget{
+		{URL: "http://a:9000/w"},
+		{Tag: "prod"}, // should be skipped with warning
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 1 {
+		t.Errorf("expected 1 target (tag skipped), got %d", len(resolved))
+	}
+	if resolved[0].URL != "http://a:9000/w" {
+		t.Errorf("expected static target, got %s", resolved[0].URL)
+	}
+}
+
+func TestResolveRelayTargets_EmptyTagMatch(t *testing.T) {
+	e := newTestEngine(t)
+	reg := NewTargetRegistry(10, 0)
+	reg.Register(RegistryEntry{URL: "http://a:9000/w", Tags: []string{"staging"}})
+	e.registry = reg
+
+	targets := []config.RelayTarget{
+		{Tag: "prod"}, // no match
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 0 {
+		t.Errorf("expected 0 targets (no match), got %d", len(resolved))
+	}
+}
+
+func TestResolveRelayTargets_MultipleTags(t *testing.T) {
+	e := newTestEngine(t)
+
+	reg := NewTargetRegistry(10, 0)
+	reg.Register(RegistryEntry{URL: "http://a:9000/w", Tags: []string{"web", "prod"}})
+	reg.Register(RegistryEntry{URL: "http://b:9000/w", Tags: []string{"api", "prod"}})
+	e.registry = reg
+
+	targets := []config.RelayTarget{
+		{Tag: "web"},  // matches only 'a'
+		{Tag: "prod"}, // matches both, but 'a' is already seen
+	}
+
+	resolved := e.resolveRelayTargets(targets, "cfg", "rule", e.logger)
+	if len(resolved) != 2 {
+		t.Errorf("expected 2 targets (deduped), got %d", len(resolved))
+	}
+}

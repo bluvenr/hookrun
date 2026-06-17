@@ -63,6 +63,12 @@ type Engine struct {
 	// Deduplication cache for relay idempotency
 	dedup     *dedupCache
 	dedupStop chan struct{}
+	// Relay target registry for dynamic discovery (nil when not enabled)
+	registry     *TargetRegistry
+	registryStop chan struct{}
+	// Guard against double-stop (channel close panic)
+	stoppedMu sync.Mutex
+	stopped   bool
 }
 
 // New creates a new Engine instance.
@@ -93,10 +99,34 @@ func (e *Engine) UpdateConfigs(configs []*config.RuleConfig) {
 }
 
 // Stop gracefully shuts down the engine, stopping background goroutines.
+// Safe to call multiple times — subsequent calls are no-ops.
 func (e *Engine) Stop() {
+	e.stoppedMu.Lock()
+	if e.stopped {
+		e.stoppedMu.Unlock()
+		return
+	}
+	e.stopped = true
+	e.stoppedMu.Unlock()
+
 	if e.dedupStop != nil {
 		close(e.dedupStop)
 	}
+	if e.registryStop != nil {
+		close(e.registryStop)
+	}
+}
+
+// SetRegistry sets the target registry for dynamic relay discovery.
+func (e *Engine) SetRegistry(reg *TargetRegistry) {
+	e.registry = reg
+	e.registryStop = make(chan struct{})
+	reg.StartCleanupLoop(30*time.Second, e.registryStop)
+}
+
+// Registry returns the target registry (nil when not enabled).
+func (e *Engine) Registry() *TargetRegistry {
+	return e.registry
 }
 
 // getRuleLogger returns (or creates) a rule-level logger for the given config.

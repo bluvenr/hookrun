@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/config"
@@ -108,16 +111,75 @@ func runServer() error {
 	// Init engine
 	eng := engine.New(configMgr.Rules(), log, cfg.Log.Mode, cfg.Log.RetentionDays, cfg.Log.MaxSizeMB)
 
-	// Start signal file watcher (for Windows IPC)
-	go watchSignalFiles(eng, configMgr, log)
+	// Init relay registry (if enabled)
+	if cfg.Server.IsRelayRegistryEnabled() {
+		registry := engine.NewTargetRegistry(cfg.Server.MaxRegistryEntries, cfg.Server.MaxRelayTTL)
+		eng.SetRegistry(registry)
+	}
 
-	// Start server
+	// Init relay client (if configured)
+	var relayClient *engine.RelayClient
+	if cfg.HasRelayClient() {
+		relayClient = engine.NewRelayClient(cfg.RelayClient, cfg.Server.Port, log)
+		relayClient.Start()
+		defer relayClient.Stop()
+	}
+
+	// Create server and start HTTP listener (non-blocking)
 	srv := server.New(configMgr, eng, log)
-	return srv.Start()
+	if err := srv.ListenAndServe(); err != nil {
+		return fmt.Errorf("server start: %w", err)
+	}
+
+	// Shared shutdown channel (closed by either signal source)
+	stopCh := make(chan struct{})
+
+	// Start signal file watcher (primary IPC on Windows, reload on all platforms)
+	go watchSignalFiles(srv, eng, relayClient, configMgr, log, stopCh)
+
+	// On non-Windows: also listen for OS signals (SIGTERM/SIGINT)
+	if runtime.GOOS != "windows" {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		// Use a goroutine to translate OS signal into stopCh
+		go func() {
+			sig := <-sigCh
+			log.Info("Received signal %v, initiating graceful shutdown...", sig)
+			if relayClient != nil {
+				relayClient.Stop()
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			if err := srv.GracefulShutdown(ctx); err != nil {
+				log.Error("Graceful shutdown error: %v", err)
+			}
+			cancel()
+			select {
+			case <-stopCh: // already closed by watcher
+			default:
+				close(stopCh)
+			}
+		}()
+	}
+
+	// Wait for graceful shutdown or HTTP server error
+	select {
+	case <-stopCh:
+		// Graceful shutdown completed
+	case err := <-srv.ErrCh():
+		log.Error("HTTP server error: %v", err)
+		// Emergency cleanup
+		if relayClient != nil {
+			relayClient.Stop()
+		}
+		return fmt.Errorf("server error: %w", err)
+	}
+	return nil
 }
 
 // watchSignalFiles polls for signal files (cross-platform IPC).
-func watchSignalFiles(eng *engine.Engine, configMgr *config.Manager, log *logger.Logger) {
+// On Windows, it handles graceful shutdown by stopping relay client and HTTP server
+// before signaling the main goroutine to return (instead of os.Exit(0)).
+func watchSignalFiles(srv *server.Server, eng *engine.Engine, relayClient *engine.RelayClient, configMgr *config.Manager, log *logger.Logger, stopCh chan struct{}) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -136,10 +198,27 @@ func watchSignalFiles(eng *engine.Engine, configMgr *config.Manager, log *logger
 			_ = daemon.WriteStatus(cfg.Server.Port, configMgr.RuleCount())
 		}
 
-		// Check stop signal
+		// Check stop signal — graceful shutdown (no os.Exit!)
 		if daemon.CheckSignalFile(daemon.StopSignalFile) {
-			log.Info("Stop signal received")
-			os.Exit(0)
+			log.Info("Stop signal received, initiating graceful shutdown...")
+
+			// 1. Stop relay client (sends unregister to upstream)
+			if relayClient != nil {
+				relayClient.Stop()
+			}
+
+			// 2. Gracefully shutdown HTTP server (drains active connections)
+			if srv != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if err := srv.GracefulShutdown(ctx); err != nil {
+					log.Error("HTTP graceful shutdown error: %v", err)
+				}
+				cancel()
+			}
+
+			// 3. Signal main goroutine to return (triggers remaining defers)
+			close(stopCh)
+			return
 		}
 	}
 }
@@ -404,6 +483,16 @@ func validateCmd() *cobra.Command {
 			}
 			fmt.Printf("  Config dir: %s\n", cfg.ConfigDir)
 			fmt.Printf("  Rule files loaded: %d\n", configMgr.RuleCount())
+
+			// Relay info
+			if cfg.Server.IsRelayRegistryEnabled() {
+				fmt.Printf("  Relay registry: enabled (max entries: %d, max TTL: %ds)\n", cfg.Server.MaxRegistryEntries, cfg.Server.MaxRelayTTL)
+			} else {
+				fmt.Printf("  Relay registry: disabled\n")
+			}
+			if cfg.HasRelayClient() {
+				fmt.Printf("  Relay client: upstream=%s, tags=%v, ttl=%ds\n", cfg.RelayClient.Upstream, cfg.RelayClient.Tags, cfg.RelayClient.TTL)
+			}
 
 			for _, r := range configMgr.Rules() {
 				ruleNames := make([]string, 0, len(r.Rules))

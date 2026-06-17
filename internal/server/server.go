@@ -25,6 +25,7 @@ type Server struct {
 	configMgr  *config.Manager
 	logger     *logger.Logger
 	startTime  time.Time
+	errCh      chan error // captures HTTP server listen errors
 }
 
 // New creates a new Server instance.
@@ -36,8 +37,29 @@ func New(configMgr *config.Manager, eng *engine.Engine, log *logger.Logger) *Ser
 	}
 }
 
-// Start begins listening for HTTP requests.
+// Start begins listening for HTTP requests and blocks until a shutdown signal is received.
 func (s *Server) Start() error {
+	if err := s.ListenAndServe(); err != nil {
+		return err
+	}
+
+	// Listen for shutdown signals
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	// Wait for shutdown signal or server error
+	select {
+	case err := <-s.errCh:
+		return fmt.Errorf("server error: %w", err)
+	case sig := <-stop:
+		s.logger.Info("Received signal %v, shutting down...", sig)
+		return s.Shutdown()
+	}
+}
+
+// ListenAndServe sets up routes and starts the HTTP server in a background goroutine.
+// Returns immediately after the server begins listening. Non-blocking alternative to Start().
+func (s *Server) ListenAndServe() error {
 	cfg := s.configMgr.Global()
 	route := cfg.Server.Route
 	if route == "" {
@@ -60,6 +82,13 @@ func (s *Server) Start() error {
 	// Reload endpoint (internal use)
 	mux.HandleFunc("/_reload", s.handleReload)
 
+	// Relay registry API (conditionally registered)
+	if cfg.Server.IsRelayRegistryEnabled() {
+		mux.HandleFunc("/api/relay/register", s.handleRelayRegister)
+		mux.HandleFunc("/api/relay/targets", s.handleRelayTargets)
+		s.logger.Info("Relay registry enabled (max entries: %d, max TTL: %ds)", cfg.Server.MaxRegistryEntries, cfg.Server.MaxRelayTTL)
+	}
+
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	s.httpServer = &http.Server{
 		Addr:         addr,
@@ -73,26 +102,15 @@ func (s *Server) Start() error {
 	s.logger.Info("HookRun server starting on %s (route: %s)", addr, route)
 	s.logger.Info("Loaded %d rule config file(s)", s.configMgr.RuleCount())
 
-	// Listen for shutdown signals
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	// Start server in goroutine
-	errCh := make(chan error, 1)
+	// Start server in background goroutine
+	s.errCh = make(chan error, 1)
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errCh <- err
+			s.errCh <- err
 		}
 	}()
 
-	// Wait for shutdown signal or error
-	select {
-	case err := <-errCh:
-		return fmt.Errorf("server error: %w", err)
-	case sig := <-stop:
-		s.logger.Info("Received signal %v, shutting down...", sig)
-		return s.Shutdown()
-	}
+	return nil
 }
 
 // Shutdown gracefully shuts down the server.
@@ -102,6 +120,7 @@ func (s *Server) Shutdown() error {
 
 	s.logger.Info("Shutting down server...")
 	s.engine.CloseRuleLoggers()
+	s.engine.Stop()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutdown error: %w", err)
 	}
@@ -109,6 +128,21 @@ func (s *Server) Shutdown() error {
 	s.logger.Info("Server stopped")
 	s.logger.Close()
 	return nil
+}
+
+// GracefulShutdown gracefully shuts down the HTTP server without closing the logger.
+// Used by external callers (e.g. Windows stop signal handler) that manage logger lifecycle separately.
+func (s *Server) GracefulShutdown(ctx context.Context) error {
+	s.logger.Info("Shutting down HTTP server...")
+	s.engine.CloseRuleLoggers()
+	s.engine.Stop()
+	return s.httpServer.Shutdown(ctx)
+}
+
+// ErrCh returns the channel that receives HTTP server listen errors.
+// Returns nil if ListenAndServe has not been called yet.
+func (s *Server) ErrCh() <-chan error {
+	return s.errCh
 }
 
 // handleWebhook processes incoming webhook requests.

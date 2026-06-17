@@ -81,7 +81,19 @@ func (e *Engine) executeRelay(action *config.Action, req *RequestData, configNam
 		timeout = time.Duration(relayCfg.Timeout) * time.Second
 	}
 
-	targets := relayCfg.Targets
+	// Resolve targets: expand tags to actual URLs, deduplicate by URL
+	targets := e.resolveRelayTargets(relayCfg.Targets, configName, ruleName, log)
+	if len(targets) == 0 {
+		msg := "no relay targets resolved"
+		log.Warn("[%s/%s] %s", configName, ruleName, msg)
+		return &executor.ActionResult{
+			ExitCode: 1,
+			Error:    fmt.Errorf("%s", msg),
+			Stdout:   msg,
+			Duration: time.Since(start),
+		}
+	}
+
 	result := &relayResult{Targets: len(targets)}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -109,6 +121,53 @@ func (e *Engine) executeRelay(action *config.Action, req *RequestData, configNam
 
 	log.Info("[%s/%s] Relay -> %d/%d targets succeeded (%v)", configName, ruleName, result.Succeeded, result.Targets, result.Duration)
 	return result.toActionResult()
+}
+
+// resolveRelayTargets expands relay targets, resolving tags to actual URLs and deduplicating.
+// Static targets (with URL) take priority over dynamic targets (with tag) for the same URL.
+func (e *Engine) resolveRelayTargets(configTargets []config.RelayTarget, configName, ruleName string, log logger.LogWriter) []config.RelayTarget {
+	seen := make(map[string]bool) // URL -> already added
+	var resolved []config.RelayTarget
+
+	// Phase 1: add all static targets (URL-based)
+	for _, t := range configTargets {
+		if t.URL != "" {
+			seen[t.URL] = true
+			resolved = append(resolved, t)
+		}
+	}
+
+	// Phase 2: resolve tag targets from registry
+	for _, t := range configTargets {
+		if t.Tag == "" {
+			continue
+		}
+
+		if e.registry == nil {
+			log.Warn("[%s/%s] Relay tag '%s' cannot be resolved: registry is not enabled", configName, ruleName, t.Tag)
+			continue
+		}
+
+		entries := e.registry.FindByTag(t.Tag)
+		if len(entries) == 0 {
+			log.Warn("[%s/%s] Relay tag '%s' matched 0 registered targets", configName, ruleName, t.Tag)
+			continue
+		}
+
+		for _, entry := range entries {
+			if seen[entry.URL] {
+				continue // skip duplicate (static takes priority)
+			}
+			seen[entry.URL] = true
+			resolved = append(resolved, config.RelayTarget{
+				URL:   entry.URL,
+				Token: entry.Token,
+			})
+		}
+		log.Info("[%s/%s] Relay tag '%s' resolved to %d target(s)", configName, ruleName, t.Tag, len(entries))
+	}
+
+	return resolved
 }
 
 // targetResult holds the outcome of sending to a single relay target.

@@ -17,6 +17,9 @@ HookRun uses two levels of YAML configuration:
 | `server.route` | string | `/webhook` | Base webhook endpoint path |
 | `server.allow_all` | bool | `false` | Allow base route (`/webhook`) to iterate all config files |
 | `server.max_body_size_mb` | int | `10` | Max request body size in MB. `0` = unlimited |
+| `server.relay_registry_token` | string | `""` | Relay registry API auth token. Non-empty enables registry |
+| `server.max_relay_ttl` | int | `0` (unlimited) | Max TTL cap for registered targets (seconds) |
+| `server.max_registry_entries` | int | `100` | Max number of registered targets |
 | `log.mode` | string | `daily` | Log mode: `"daily"` (rotate by day) or `"single"` (one file) |
 | `log.path` | string | `./logs` | Log directory (daily) or base path (single) |
 | `log.retention_days` | int | `30` | Days to retain daily log files |
@@ -54,6 +57,66 @@ Limits the maximum size of incoming request bodies to prevent DoS attacks.
 - `10` (default) — Request bodies larger than 10 MB are rejected with HTTP 413
 - `0` — No limit (use with caution)
 - Any positive integer — Custom limit in MB
+
+### `server.relay_registry_token` — Dynamic Target Discovery
+
+Enables the relay registry API for dynamic target discovery. When set, downstream HookRun instances can auto-register with this instance.
+
+```yaml
+# Upstream (main HookRun)
+server:
+  port: 9000
+  relay_registry_token: "your-registry-secret"   # API auth for registration
+  max_relay_ttl: 300                               # cap TTL at 5 min
+  max_registry_entries: 100                        # max pool capacity
+```
+
+**Registry API endpoints** (available only when `relay_registry_token` is set):
+
+| Method | Path | Function |
+|--------|------|----------|
+| `POST` | `/api/relay/register` | Register or refresh a target |
+| `DELETE` | `/api/relay/register` | Unregister a target |
+| `GET` | `/api/relay/targets` | List all registered targets |
+
+**Registration body** (`POST /api/relay/register`):
+```json
+{
+  "url": "http://10.0.0.5:9000/webhook/deploy-app",
+  "token": "downstream-auth-token",
+  "tags": ["web", "prod"],
+  "ttl": 120
+}
+```
+
+### `relay_client` — Auto-Registration (Downstream)
+
+Configures a downstream HookRun instance to auto-register with an upstream on startup and maintain heartbeat:
+
+```yaml
+# Downstream HookRun config.yaml
+server:
+  port: 9000
+
+relay_client:
+  upstream: "http://main-hookrun:9000"          # upstream URL (required)
+  url: "http://10.0.0.5:9000/webhook/deploy-app" # local URL (auto-detected if omitted)
+  token: "my-auth-token"                         # downstream auth token
+  registry_token: "your-registry-secret"         # registry API token
+  tags: ["web", "prod"]                          # tags for target matching
+  ttl: 120                                       # TTL in seconds
+  webhook_path: "/webhook/deploy-app"            # used for URL auto-detection
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `upstream` | string | Yes | Upstream HookRun URL |
+| `url` | string | No | Local reachable URL (auto-detected from IP + port + webhook_path if omitted) |
+| `token` | string | No | Auth token included when upstream relays to this instance |
+| `registry_token` | string | No | Bearer token for registry API auth |
+| `tags` | array | Yes | Tags for dynamic target matching |
+| `ttl` | int | No | Suggested TTL in seconds (may be capped by upstream `max_relay_ttl`) |
+| `webhook_path` | string | No | Webhook path for URL auto-detection (default: `/webhook`) |
 
 ### `log.mode`
 
@@ -548,18 +611,20 @@ The `relay` type forwards the original webhook request body to multiple HookRun 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | string | Yes | Target HookRun instance URL |
+| `url` | string | One of `url`/`tag` | Static target HookRun instance URL |
 | `token` | string | No | Auth token for downstream |
+| `tag` | string | One of `url`/`tag` | Dynamic target tag — matches all registered instances with this tag |
 
 ```yaml
 actions:
   - type: "relay"
     relay:
       targets:
-        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"   # static target
           token: "relay-secret-B"
         - url: "http://10.0.0.3:9000/webhook/deploy-app"
           token: "relay-secret-C"
+        - tag: "prod"                                      # dynamic: all registered instances tagged "prod"
       forward_headers:
         - "X-GitHub-Event"
       timeout: 30

@@ -37,6 +37,7 @@
 | **配置格式** | YAML（可读性强，支持注释） | JSON / YAML | 可视化编辑器 / JSON | JSON（Agent 配置） |
 | **健康检查** | 内置 `/health` 端点，对接监控 | 无内置端点 | 有健康检查 | 有健康检查 |
 | **失败重试** | 内置指数退避 + 随机抖动 | 不支持重试 | Retry on Fail 节点 | 部分支持（场景级） |
+| **Relay 中转** | 内置多目标中转 + 动态注册池 + tag 匹配 | 不支持中转 | 需搭建 HTTP 节点工作流 | 手动配置 Scenario 代理 |
 | **开源协议** | MIT，完全自由使用 | MIT，完全自由使用 | Fair-code (SUL)，有商业限制 | MIT，完全自由使用 |
 
 - **安全优先** — Token 认证、HMAC 签名验证、IP 白名单，多重防护 AND 组合，保障端点安全
@@ -89,6 +90,8 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **文件级过滤** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
 - **参数传递** — 模板变量（`{{.body.ref}}`）、`pass_args` 和环境变量注入（`env_from`）将请求数据传入命令/脚本
 - **Webhook 转发** — 将 Webhook 负载转发到其他服务，支持模板构建 Body、Header 白名单转发、`{{.raw_body}}` 原始数据注入
+- **Relay 中转** — 多目标中转到其他 HookRun 实例，支持静态目标、动态注册池和 tag 发现
+- **失败重试** — 内置指数退避 + 随机抖动，命令/脚本执行失败时自动重试
 - **热重载** — 运行中自动重载配置，无需重启服务
 - **日志管理** — Daily/Single 双模式，自动清理，支持规则级独立日志
 - **健康检查** — 内置 `/health` 端点，便于对接 Prometheus、Uptime Kuma 等监控系统
@@ -164,6 +167,30 @@ rules:
 ### 自定义自动化
 
 任何 HTTP POST 都是触发器 — 同步数据、发送通知、管理基础设施，一切皆可自动化。
+
+### 多服务器部署
+
+通过 Relay 将 Webhook 事件从中心 HookRun 分发到多台服务器上的下游实例。支持静态目标，也可让实例启动时自注册并用 tag 动态发现。
+
+```yaml
+# 上游：中转到所有带 "prod" 标签的已注册实例
+- type: "relay"
+  relay:
+    targets:
+      - tag: "prod"
+    forward_headers: ["X-GitHub-Event"]
+    timeout: 30
+```
+
+```yaml
+# 下游（每台服务器）：启动时自动向上游注册
+# 在 config.yaml 中：
+relay_client:
+  upstream: "http://10.0.0.1:9000"
+  registry_token: "shared-registry-secret"
+  tags: ["prod"]
+  ttl: 120
+```
 
 ## 快速开始
 
@@ -427,10 +454,11 @@ actions:
   - type: "relay"                  # 中转到其他 HookRun 实例
     relay:
       targets:
-        - url: "http://10.0.0.2:9000/webhook/deploy-app"
+        - url: "http://10.0.0.2:9000/webhook/deploy-app"   # 静态目标
           token: "relay-secret-B"
         - url: "http://10.0.0.3:9000/webhook/deploy-app"
           token: "relay-secret-C"
+        - tag: "prod"                                      # 动态：匹配所有带 "prod" 标签的已注册实例
       forward_headers: ["X-GitHub-Event"]
       timeout: 30
       max_relay_hops: 3

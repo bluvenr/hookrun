@@ -97,10 +97,11 @@ rules:
         # Forward to multiple HookRun instances on other servers
         relay:
           targets:
-            - url: "http://10.0.0.2:9000/webhook/deploy-app"
+            - url: "http://10.0.0.2:9000/webhook/deploy-app"   # static target
               token: "relay-secret-B"
             - url: "http://10.0.0.3:9000/webhook/deploy-app"
               token: "relay-secret-C"
+            - tag: "prod"                                      # dynamic: matches registered targets with "prod" tag
           forward_headers:
             - "X-GitHub-Event"
           timeout: 30
