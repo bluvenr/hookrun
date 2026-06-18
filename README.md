@@ -28,16 +28,16 @@ A purpose-built action engine for webhook automation, compared with general-purp
 
 | | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n | Huginn |
 |---|---------|------|------|------|
-| **Execution Policy** | block / always / cooldown — 3 modes | No concurrency control, always triggers | Partial (retry / wait) | Scenario-based triggers |
-| **Authentication** | Token + HMAC + IP whitelist, top-level auth, AND-combined | Token + HMAC, nested in trigger-rule, scattered config | Basic / Header / JWT / IP whitelist | Devise user auth + OAuth services |
 | **Binary Size** | Single file ~3MB, zero deps | Single file ~7MB, zero deps | Docker + SQLite (default) / PostgreSQL | Docker + MySQL / PostgreSQL |
+| **Execution Policy** | block / always / cooldown — 3 modes | No concurrency control, always triggers | Partial (retry / wait) | Scenario-based triggers |
 | **Hot Reload** | Auto-watches directory, zero-config | `-hotreload` flag, specified files only | Restart required | Restart required |
+| **Authentication** | Token + HMAC + IP whitelist, top-level auth, AND-combined | Token + HMAC, nested in trigger-rule, scattered config | Basic / Header / JWT / IP whitelist | Devise user auth + OAuth services |
 | **Routing** | `/webhook/{filename}` targeted, on-demand | `/hooks/{id}` flat, single entry | Workflow engine | Scenario graph (agent links) |
 | **Process Mgmt** | Built-in CLI daemon (start/stop/status) | Requires external systemd, etc. | Docker container management | Docker container management |
 | **Config Format** | YAML (readable, comments supported) | JSON / YAML | Visual editor / JSON | JSON (agent config) |
-| **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
-| **Retry** | Built-in exponential backoff with jitter | No retry support | Retry on Fail node | Partial (scenario-level) |
 | **Relay** | Built-in multi-target relay + dynamic registry + tag matching | No relay support | Requires HTTP node workflow | Manual scenario proxy setup |
+| **Retry** | Built-in exponential backoff with jitter | No retry support | Retry on Fail node | Partial (scenario-level) |
+| **Health Check** | Built-in `/health` endpoint | No built-in endpoint | Has health check | Has health check |
 | **License** | MIT, full freedom | MIT, full freedom | Fair-code (SUL), commercial restrictions | MIT, full freedom |
 
 - **Security First** — Token auth, HMAC signature verification, and IP whitelisting with AND-combined enforcement

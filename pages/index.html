@@ -548,131 +548,6 @@
   </div>
 </section>
 
-<!-- Why HookRun -->
-<section class="section section-alt" id="why">
-  <div class="container">
-    <h2 class="section-title" data-i18n="why_title">Why HookRun?</h2>
-    <p class="section-desc" data-i18n="why_desc">Purpose-built for webhook automation. Secure, lightweight, and fully under your control.</p>
-    <div class="why-grid">
-      <div class="why-card">
-        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-        <div class="why-title" data-i18n="why1_title">Security First</div>
-        <div class="why-desc" data-i18n="why1_desc">Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe.</div>
-      </div>
-      <div class="why-card">
-        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-        <div class="why-title" data-i18n="why2_title">Lightweight</div>
-        <div class="why-desc" data-i18n="why2_desc">One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources.</div>
-      </div>
-      <div class="why-card">
-        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
-        <div class="why-title" data-i18n="why3_title">Full Control</div>
-        <div class="why-desc" data-i18n="why3_desc">Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Comparison -->
-<section class="section" id="comparison">
-  <div class="container">
-    <h2 class="section-title" data-i18n="comp_title">HookRun vs Alternatives</h2>
-    <p class="section-desc" data-i18n="comp_desc">Purpose-built for webhook scenarios. See how HookRun stacks up.</p>
-    <div class="comp-scroll">
-      <table class="comp-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th data-i18n="comp_h_hookrun">HookRun</th>
-            <th><a href="https://github.com/adnanh/webhook" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">adnanh/webhook</a></th>
-            <th><a href="https://n8n.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">n8n</a></th>
-            <th><a href="https://github.com/huginn/huginn" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">Huginn</a></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td data-i18n="comp_r_exec">Execution Policy</td>
-            <td data-i18n-html="comp_exec_hr"><code>block</code> / <code>always</code> / <code>cooldown</code> — 3 modes</td>
-            <td data-i18n="comp_exec_wh">No concurrency control</td>
-            <td data-i18n="comp_exec_n8n">Partial (retry / wait)</td>
-            <td data-i18n="comp_exec_hug">Scenario-based triggers</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_auth">Authentication</td>
-            <td data-i18n-html="comp_auth_hr">Token + HMAC + IP whitelist</td>
-            <td data-i18n="comp_auth_wh">Token + HMAC</td>
-            <td data-i18n="comp_auth_n8n">Basic / Header / JWT / IP</td>
-            <td data-i18n="comp_auth_hug">Devise + OAuth</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_deploy">Deploy Size</td>
-            <td data-i18n="comp_deploy_hr">~3MB single file, zero deps</td>
-            <td data-i18n="comp_deploy_wh">~7MB single file, zero deps</td>
-            <td data-i18n="comp_deploy_n8n">Docker + SQLite / PostgreSQL</td>
-            <td data-i18n="comp_deploy_hug">Docker + MySQL / PostgreSQL</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_reload">Hot Reload</td>
-            <td data-i18n="comp_reload_hr">Auto-watches directory, zero-config</td>
-            <td data-i18n-html="comp_reload_wh"><code>-hotreload</code> flag, single file</td>
-            <td data-i18n="comp_reload_n8n">Restart required</td>
-            <td data-i18n="comp_reload_hug">Restart required</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_route">Routing</td>
-            <td data-i18n-html="comp_route_hr"><code>/webhook/{filename}</code> targeted routing</td>
-            <td data-i18n-html="comp_route_wh"><code>/hooks/{id}</code> flat routing</td>
-            <td data-i18n="comp_route_n8n">Workflow engine</td>
-            <td data-i18n="comp_route_hug">Scenario graph (agent links)</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_proc">Process Management</td>
-            <td data-i18n="comp_proc_hr">Built-in CLI daemon (start/stop/status)</td>
-            <td data-i18n="comp_proc_wh">Requires external systemd, etc.</td>
-            <td data-i18n="comp_proc_n8n">Docker container management</td>
-            <td data-i18n="comp_proc_hug">Docker container management</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_config">Config Format</td>
-            <td data-i18n="comp_config_hr">YAML (readable, comments supported)</td>
-            <td data-i18n="comp_config_wh">JSON / YAML</td>
-            <td data-i18n="comp_config_n8n">Visual editor / JSON</td>
-            <td data-i18n="comp_config_hug">JSON (agent config)</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_health">Health Check</td>
-            <td data-i18n-html="comp_health_hr">Built-in <code>/health</code> endpoint</td>
-            <td data-i18n="comp_health_wh">No built-in endpoint</td>
-            <td data-i18n="comp_health_n8n">Has health check</td>
-            <td data-i18n="comp_health_hug">Has health check</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_retry">Retry</td>
-            <td data-i18n-html="comp_retry_hr">Built-in exponential backoff + jitter</td>
-            <td data-i18n="comp_retry_wh">No retry support</td>
-            <td data-i18n="comp_retry_n8n">Retry on Fail node</td>
-            <td data-i18n="comp_retry_hug">Partial (scenario-level)</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_relay">Relay</td>
-            <td data-i18n-html="comp_relay_hr">Built-in multi-target + dynamic registry + tag matching</td>
-            <td data-i18n="comp_relay_wh">No relay support</td>
-            <td data-i18n="comp_relay_n8n">Requires HTTP node workflow</td>
-            <td data-i18n="comp_relay_hug">Manual scenario proxy</td>
-          </tr>
-          <tr>
-            <td data-i18n="comp_r_license">License</td>
-            <td data-i18n="comp_lic_hr">MIT, full freedom</td>
-            <td data-i18n-html="comp_lic_wh">MIT, full freedom</td>
-            <td data-i18n="comp_lic_n8n">Fair-code (SUL), restrictions</td>
-            <td data-i18n="comp_lic_hug">MIT, full freedom</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
 <!-- How It Works -->
 <section class="section section-alt" id="how">
   <div class="container">
@@ -706,24 +581,159 @@
   </div>
 </section>
 
+<!-- Why HookRun -->
+<section class="section" id="why">
+  <div class="container">
+    <h2 class="section-title" data-i18n="why_title">Why HookRun?</h2>
+    <p class="section-desc" data-i18n="why_desc">Purpose-built for webhook automation. Secure, lightweight, and fully under your control.</p>
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div class="why-title" data-i18n="why1_title">Security First</div>
+        <div class="why-desc" data-i18n="why1_desc">Token auth, HMAC signature verification, and IP whitelisting. Multiple layers of defense to keep your endpoints safe.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <div class="why-title" data-i18n="why2_title">Lightweight</div>
+        <div class="why-desc" data-i18n="why2_desc">One binary, under 5MB. No database, no container runtime, no heavy dependencies. Runs anywhere with minimal resources.</div>
+      </div>
+      <div class="why-card">
+        <div class="why-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <div class="why-title" data-i18n="why3_title">Full Control</div>
+        <div class="why-desc" data-i18n="why3_desc">Open source under MIT. Self-hosted on your own servers. Your rules, your data, your infrastructure.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section class="section section-alt" id="comparison">
+  <div class="container">
+    <h2 class="section-title" data-i18n="comp_title">HookRun vs Alternatives</h2>
+    <p class="section-desc" data-i18n="comp_desc">Purpose-built for webhook scenarios. See how HookRun stacks up.</p>
+    <div class="comp-scroll">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th data-i18n="comp_h_hookrun">HookRun</th>
+            <th><a href="https://github.com/adnanh/webhook" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">adnanh/webhook</a></th>
+            <th><a href="https://n8n.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">n8n</a></th>
+            <th><a href="https://github.com/huginn/huginn" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">Huginn</a></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-i18n="comp_r_deploy">Deploy Size</td>
+            <td data-i18n="comp_deploy_hr">~3MB single file, zero deps</td>
+            <td data-i18n="comp_deploy_wh">~7MB single file, zero deps</td>
+            <td data-i18n="comp_deploy_n8n">Docker + SQLite / PostgreSQL</td>
+            <td data-i18n="comp_deploy_hug">Docker + MySQL / PostgreSQL</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_exec">Execution Policy</td>
+            <td data-i18n-html="comp_exec_hr"><code>block</code> / <code>always</code> / <code>cooldown</code> — 3 modes</td>
+            <td data-i18n="comp_exec_wh">No concurrency control</td>
+            <td data-i18n="comp_exec_n8n">Partial (retry / wait)</td>
+            <td data-i18n="comp_exec_hug">Scenario-based triggers</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_reload">Hot Reload</td>
+            <td data-i18n="comp_reload_hr">Auto-watches directory, zero-config</td>
+            <td data-i18n-html="comp_reload_wh"><code>-hotreload</code> flag, single file</td>
+            <td data-i18n="comp_reload_n8n">Restart required</td>
+            <td data-i18n="comp_reload_hug">Restart required</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_auth">Authentication</td>
+            <td data-i18n-html="comp_auth_hr">Token + HMAC + IP whitelist</td>
+            <td data-i18n="comp_auth_wh">Token + HMAC</td>
+            <td data-i18n="comp_auth_n8n">Basic / Header / JWT / IP</td>
+            <td data-i18n="comp_auth_hug">Devise + OAuth</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_route">Routing</td>
+            <td data-i18n-html="comp_route_hr"><code>/webhook/{filename}</code> targeted routing</td>
+            <td data-i18n-html="comp_route_wh"><code>/hooks/{id}</code> flat routing</td>
+            <td data-i18n="comp_route_n8n">Workflow engine</td>
+            <td data-i18n="comp_route_hug">Scenario graph (agent links)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_proc">Process Management</td>
+            <td data-i18n="comp_proc_hr">Built-in CLI daemon (start/stop/status)</td>
+            <td data-i18n="comp_proc_wh">Requires external systemd, etc.</td>
+            <td data-i18n="comp_proc_n8n">Docker container management</td>
+            <td data-i18n="comp_proc_hug">Docker container management</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_config">Config Format</td>
+            <td data-i18n="comp_config_hr">YAML (readable, comments supported)</td>
+            <td data-i18n="comp_config_wh">JSON / YAML</td>
+            <td data-i18n="comp_config_n8n">Visual editor / JSON</td>
+            <td data-i18n="comp_config_hug">JSON (agent config)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_relay">Relay</td>
+            <td data-i18n-html="comp_relay_hr">Built-in multi-target + dynamic registry + tag matching</td>
+            <td data-i18n="comp_relay_wh">No relay support</td>
+            <td data-i18n="comp_relay_n8n">Requires HTTP node workflow</td>
+            <td data-i18n="comp_relay_hug">Manual scenario proxy</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_retry">Retry</td>
+            <td data-i18n-html="comp_retry_hr">Built-in exponential backoff + jitter</td>
+            <td data-i18n="comp_retry_wh">No retry support</td>
+            <td data-i18n="comp_retry_n8n">Retry on Fail node</td>
+            <td data-i18n="comp_retry_hug">Partial (scenario-level)</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_health">Health Check</td>
+            <td data-i18n-html="comp_health_hr">Built-in <code>/health</code> endpoint</td>
+            <td data-i18n="comp_health_wh">No built-in endpoint</td>
+            <td data-i18n="comp_health_n8n">Has health check</td>
+            <td data-i18n="comp_health_hug">Has health check</td>
+          </tr>
+          <tr>
+            <td data-i18n="comp_r_license">License</td>
+            <td data-i18n="comp_lic_hr">MIT, full freedom</td>
+            <td data-i18n-html="comp_lic_wh">MIT, full freedom</td>
+            <td data-i18n="comp_lic_n8n">Fair-code (SUL), restrictions</td>
+            <td data-i18n="comp_lic_hug">MIT, full freedom</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- Quick Start -->
 <section class="section" id="quickstart">
   <div class="container">
     <h2 class="section-title" data-i18n="qs_title">Quick Start</h2>
-    <p class="section-desc" data-i18n="qs_desc">From source to running webhook server in three steps.</p>
+    <p class="section-desc" data-i18n="qs_desc">From download to running webhook server in three steps.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num">01</div>
-        <div class="step-title" data-i18n="qs_s1_title">Build</div>
-        <div class="step-code">git clone https://github.com/bluvenr/hookrun.git
-cd hookrun
-go build -o hookrun ./cmd/hookrun/</div>
+        <div class="step-title" data-i18n="qs_s1_title">Download</div>
+        <div class="step-code"><span class="cc"># Download pre-built binary from</span>
+github.com/bluvenr/hookrun/releases
+
+<span class="cc"># Or via Go</span>
+go install github.com/bluvenr/hookrun/cmd/hookrun@latest</div>
+        <p style="text-align:center;margin-top:0.75rem"><a href="https://github.com/bluvenr/hookrun/releases" target="_blank" class="btn btn-ghost" style="font-size:13px;padding:6px 16px" data-i18n="qs_s1_releases">Go to GitHub Releases &rarr;</a></p>
       </div>
       <div class="step">
         <div class="step-num">02</div>
         <div class="step-title" data-i18n="qs_s2_title">Configure</div>
-        <div class="step-code"><span class="cc" data-i18n="qs_s2_comment"># Edit config.yaml and hooks/*.yaml</span>
-hookrun validate</div>
+        <div class="step-code"><span class="cc"># config.yaml</span>
+server:
+  port: 9000
+  auth_token: "my-secret-token"
+
+hooks:
+  deploy:
+    actions:
+      - cmd: "./deploy.sh"</div>
       </div>
       <div class="step">
         <div class="step-num">03</div>
@@ -732,6 +742,7 @@ hookrun validate</div>
 hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span></div>
       </div>
     </div>
+    <p style="text-align:center;margin-top:2rem;color:var(--text-light)" data-i18n-html="qs_more">More installation options (Docker, systemd, source build) and advanced usage → <a href="https://github.com/bluvenr/hookrun#quick-start" target="_blank" style="color:var(--accent)">Full Quick Start Guide</a></p>
   </div>
 </section>
 
@@ -805,6 +816,10 @@ hookrun start -f       <span class="cc" data-i18n="qs_s3_c2"># foreground</span>
     <h2 class="section-title" data-i18n="cta_title">Ready to Dive Deeper?</h2>
     <p class="section-desc" data-i18n="cta_desc">Explore configuration parameters, CLI commands, deployment strategies, and more.</p>
     <a href="https://github.com/bluvenr/hookrun/blob/main/docs/configuration.md" target="_blank" rel="noopener" class="cta-btn" data-i18n="cta_btn" data-i18n-doc="docs/configuration">Browse Documentation</a>
+    <div style="margin-top:1.5rem;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;font-size:14px">
+      <a href="https://github.com/bluvenr/hookrun/blob/main/docs/usage.md" target="_blank" rel="noopener" style="color:var(--text-2)" data-i18n="cta_usage" data-i18n-doc="docs/usage">Usage Guide &rarr;</a>
+      <a href="https://github.com/bluvenr/hookrun" target="_blank" rel="noopener" style="color:var(--text-2)" data-i18n="cta_github">GitHub Repository &rarr;</a>
+    </div>
   </div>
 </section>
 
@@ -876,10 +891,10 @@ const T = {
     how3_label: "Match", how3_desc: "Filters evaluate headers, query, and body",
     how4_label: "Execute", how4_desc: "Commands, scripts, and webhook forwards run with request data injected",
     how_more: "Detailed configuration guide \u2192",
-    qs_title: "Quick Start", qs_desc: "From source to running webhook server in three steps.",
-    qs_s1_title: "Build", qs_s2_title: "Configure", qs_s2_comment: "# Edit config.yaml and hooks/*.yaml",
+    qs_title: "Quick Start", qs_desc: "From download to running webhook server in three steps.",
+    qs_s1_title: "Download", qs_s2_title: "Configure",
     qs_s3_title: "Run", qs_s3_c1: "# daemon mode", qs_s3_c2: "# foreground",
-    qs_more: "Deployment: systemd, Docker, reverse proxy \u2192",
+    qs_more: "More installation options (Docker, systemd, source build) and advanced usage \u2192 <a href='https://github.com/bluvenr/hookrun#quick-start' target='_blank' style='color:var(--accent)'>Full Quick Start Guide</a>",
     aud_title: "Built For",
     aud_desc: "HookRun is the right tool if you need a simple, reliable bridge between webhooks and server actions.",
     aud1_role: "DevOps Engineers", aud1_desc: "Automate deployments and ops triggered by Git events without complex CI/CD pipelines.",
@@ -889,22 +904,22 @@ const T = {
     aud5_role: "Sys Admins", aud5_desc: "Turn incoming HTTP events into shell commands. YAML config, no scripting language required.",
     aud6_role: "Small Teams", aud6_desc: "Self-hosted, open source, no SaaS dependency. Full control over your automation stack.",
     cta_title: "Ready to Dive Deeper?", cta_desc: "Explore configuration parameters, CLI commands, deployment strategies, and more.",
-    cta_btn: "Browse Documentation",
+    cta_btn: "Browse Documentation", cta_usage: "Usage Guide \u2192", cta_github: "GitHub Repository \u2192", qs_s1_releases: "Go to GitHub Releases \u2192",
     footer_docs: "Config", footer_usage: "Usage", footer_deploy: "Deployment",
     comp_title: "HookRun vs Alternatives",
     comp_desc: "Purpose-built for webhook scenarios. See how HookRun stacks up.",
     comp_h_hookrun: "HookRun",
-    comp_r_exec: "Execution Policy", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> \u2014 3 modes", comp_exec_wh: "No concurrency control", comp_exec_n8n: "Partial (retry / wait)", comp_exec_hug: "Scenario-based triggers",
     comp_r_deploy: "Deploy Size", comp_deploy_hr: "~3MB single file, zero deps", comp_deploy_wh: "~7MB single file, zero deps", comp_deploy_n8n: "Docker + SQLite / PostgreSQL", comp_deploy_hug: "Docker + MySQL / PostgreSQL",
+    comp_r_exec: "Execution Policy", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> \u2014 3 modes", comp_exec_wh: "No concurrency control", comp_exec_n8n: "Partial (retry / wait)", comp_exec_hug: "Scenario-based triggers",
     comp_r_reload: "Hot Reload", comp_reload_hr: "Auto-watches directory, zero-config", comp_reload_wh: "<code>-hotreload</code> flag, single file", comp_reload_n8n: "Restart required", comp_reload_hug: "Restart required",
     comp_r_auth: "Authentication", comp_auth_hr: "Token + HMAC + IP whitelist", comp_auth_wh: "Token + HMAC", comp_auth_n8n: "Basic / Header / JWT / IP", comp_auth_hug: "Devise + OAuth",
     comp_r_license: "License", comp_lic_hr: "MIT, full freedom", comp_lic_wh: "MIT, full freedom", comp_lic_n8n: "Fair-code (SUL), restrictions", comp_lic_hug: "MIT, full freedom",
     comp_r_route: "Routing", comp_route_hr: "<code>/webhook/{filename}</code> targeted routing", comp_route_wh: "<code>/hooks/{id}</code> flat routing", comp_route_n8n: "Workflow engine", comp_route_hug: "Scenario graph (agent links)",
     comp_r_proc: "Process Management", comp_proc_hr: "Built-in CLI daemon (start/stop/status)", comp_proc_wh: "Requires external systemd, etc.", comp_proc_n8n: "Docker container management", comp_proc_hug: "Docker container management",
     comp_r_config: "Config Format", comp_config_hr: "YAML (readable, comments supported)", comp_config_wh: "JSON / YAML", comp_config_n8n: "Visual editor / JSON", comp_config_hug: "JSON (agent config)",
-    comp_r_health: "Health Check", comp_health_hr: "Built-in <code>/health</code> endpoint", comp_health_wh: "No built-in endpoint", comp_health_n8n: "Has health check", comp_health_hug: "Has health check",
-    comp_r_retry: "Retry", comp_retry_hr: "Built-in exponential backoff + jitter", comp_retry_wh: "No retry support", comp_retry_n8n: "Retry on Fail node", comp_retry_hug: "Partial (scenario-level)",
     comp_r_relay: "Relay", comp_relay_hr: "Built-in multi-target + dynamic registry + tag matching", comp_relay_wh: "No relay support", comp_relay_n8n: "Requires HTTP node workflow", comp_relay_hug: "Manual scenario proxy",
+    comp_r_retry: "Retry", comp_retry_hr: "Built-in exponential backoff + jitter", comp_retry_wh: "No retry support", comp_retry_n8n: "Retry on Fail node", comp_retry_hug: "Partial (scenario-level)",
+    comp_r_health: "Health Check", comp_health_hr: "Built-in <code>/health</code> endpoint", comp_health_wh: "No built-in endpoint", comp_health_n8n: "Has health check", comp_health_hug: "Has health check",
     faq_title: "FAQ",
     faq_desc: "Common questions about HookRun.",
     faq_q1: "How does HookRun compare to adnanh/webhook?",
@@ -961,10 +976,10 @@ const T = {
     how3_label: "规则匹配", how3_desc: "过滤条件评估 Header、Query、Body",
     how4_label: "执行动作", how4_desc: "运行命令、脚本和 Webhook 转发，注入请求数据",
     how_more: "详细配置指南 \u2192",
-    qs_title: "快速开始", qs_desc: "三步完成：从源码到运行中的 Webhook 服务器。",
-    qs_s1_title: "编译", qs_s2_title: "配置", qs_s2_comment: "# 编辑 config.yaml 和 hooks/*.yaml",
+    qs_title: "快速开始", qs_desc: "三步上手，立即开始自动化。",
+    qs_s1_title: "下载", qs_s2_title: "配置",
     qs_s3_title: "运行", qs_s3_c1: "# 后台守护模式", qs_s3_c2: "# 前台模式",
-    qs_more: "部署指南: systemd、Docker、反向代理 \u2192",
+    qs_more: "更多安装方式（Docker、systemd、源码构建）和进阶用法 \u2192 <a href='https://github.com/bluvenr/hookrun#quick-start' target='_blank' style='color:var(--accent)'>完整快速开始指南</a>",
     aud_title: "适合谁用？",
     aud_desc: "如果你需要一个简单、可靠的工具来连接 Webhook 和服务器动作，HookRun 就是答案。",
     aud1_role: "DevOps 工程师", aud1_desc: "通过 Git 事件自动触发部署和运维操作，无需复杂 CI/CD 流水线。",
@@ -974,22 +989,22 @@ const T = {
     aud5_role: "系统管理员", aud5_desc: "将 HTTP 事件转化为 Shell 命令。YAML 配置，无需掌握脚本语言。",
     aud6_role: "小型团队", aud6_desc: "自托管、开源、不依赖 SaaS。完全掌控你的自动化栈。",
     cta_title: "想深入了解？", cta_desc: "探索配置参数、CLI 命令、部署策略等更多内容。",
-    cta_btn: "浏览文档",
+    cta_btn: "浏览文档", cta_usage: "使用指南 \u2192", cta_github: "GitHub 仓库 \u2192", qs_s1_releases: "前往 GitHub Releases \u2192",
     footer_docs: "配置", footer_usage: "使用", footer_deploy: "部署",
     comp_title: "HookRun 与竞品对比",
     comp_desc: "专为 Webhook 场景设计，看看 HookRun 如何胜出。",
     comp_h_hookrun: "HookRun",
-    comp_r_exec: "执行策略", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> 三种模式", comp_exec_wh: "无并发控制", comp_exec_n8n: "部分支持（重试/等待）", comp_exec_hug: "基于场景触发",
     comp_r_deploy: "部署体积", comp_deploy_hr: "单文件 ~3MB，零依赖", comp_deploy_wh: "单文件 ~7MB，零依赖", comp_deploy_n8n: "Docker + SQLite / PostgreSQL", comp_deploy_hug: "Docker + MySQL / PostgreSQL",
+    comp_r_exec: "执行策略", comp_exec_hr: "<code>block</code> / <code>always</code> / <code>cooldown</code> 三种模式", comp_exec_wh: "无并发控制", comp_exec_n8n: "部分支持（重试/等待）", comp_exec_hug: "基于场景触发",
     comp_r_reload: "热更新", comp_reload_hr: "自动监听目录，零配置", comp_reload_wh: "<code>-hotreload</code> 参数，单文件", comp_reload_n8n: "需重启", comp_reload_hug: "需重启",
     comp_r_auth: "认证体系", comp_auth_hr: "Token + HMAC + IP 白名单", comp_auth_wh: "Token + HMAC", comp_auth_n8n: "Basic / Header / JWT / IP", comp_auth_hug: "Devise + OAuth",
     comp_r_license: "开源协议", comp_lic_hr: "MIT，完全自由", comp_lic_wh: "MIT，完全自由", comp_lic_n8n: "Fair-code (SUL)，有限制", comp_lic_hug: "MIT，完全自由",
     comp_r_route: "路由机制", comp_route_hr: "<code>/webhook/{filename}</code> 精准路由", comp_route_wh: "<code>/hooks/{id}</code> 扁平路由", comp_route_n8n: "工作流引擎", comp_route_hug: "场景图（Agent 链接）",
     comp_r_proc: "进程管理", comp_proc_hr: "内置 CLI 守护进程（start/stop/status）", comp_proc_wh: "依赖外部 systemd 等", comp_proc_n8n: "Docker 容器管理", comp_proc_hug: "Docker 容器管理",
     comp_r_config: "配置格式", comp_config_hr: "YAML（可读性强，支持注释）", comp_config_wh: "JSON / YAML", comp_config_n8n: "可视化编辑器 / JSON", comp_config_hug: "JSON（Agent 配置）",
-    comp_r_health: "健康检查", comp_health_hr: "内置 <code>/health</code> 端点", comp_health_wh: "无内置端点", comp_health_n8n: "有健康检查", comp_health_hug: "有健康检查",
-    comp_r_retry: "失败重试", comp_retry_hr: "内置指数退避 + 随机抖动", comp_retry_wh: "不支持重试", comp_retry_n8n: "Retry on Fail 节点", comp_retry_hug: "部分支持（场景级）",
     comp_r_relay: "Relay 中转", comp_relay_hr: "内置多目标 + 动态注册池 + tag 匹配", comp_relay_wh: "不支持中转", comp_relay_n8n: "需搭建 HTTP 节点工作流", comp_relay_hug: "手动配置 Scenario 代理",
+    comp_r_retry: "失败重试", comp_retry_hr: "内置指数退避 + 随机抖动", comp_retry_wh: "不支持重试", comp_retry_n8n: "Retry on Fail 节点", comp_retry_hug: "部分支持（场景级）",
+    comp_r_health: "健康检查", comp_health_hr: "内置 <code>/health</code> 端点", comp_health_wh: "无内置端点", comp_health_n8n: "有健康检查", comp_health_hug: "有健康检查",
     faq_title: "常见问题",
     faq_desc: "关于 HookRun 的常见疑问。",
     faq_q1: "HookRun 与 adnanh/webhook 有什么区别？",

@@ -28,16 +28,16 @@
 
 | | HookRun | [adnanh/webhook](https://github.com/adnanh/webhook) | n8n | Huginn |
 |---|---------|------|------|------|
-| **执行策略** | block / always / cooldown 三种模式 | 无并发控制，每次触发 | 部分支持（重试/等待） | 基于场景触发 |
-| **认证体系** | Token + HMAC + IP 白名单，顶层 auth 字段，AND 组合 | Token + HMAC，嵌套在 trigger-rule 中，配置分散 | Basic / Header / JWT / IP 白名单 | Devise 用户认证 + OAuth 服务 |
 | **部署体积** | 单文件 ~3MB，零依赖 | 单文件 ~7MB，零依赖 | Docker + SQLite（默认）/ PostgreSQL | Docker + MySQL / PostgreSQL |
+| **执行策略** | block / always / cooldown 三种模式 | 无并发控制，每次触发 | 部分支持（重试/等待） | 基于场景触发 |
 | **热更新** | 默认自动监听目录，零配置热加载 | `-hotreload` 参数，仅监听指定文件 | 需重启 | 需重启 |
+| **认证体系** | Token + HMAC + IP 白名单，顶层 auth 字段，AND 组合 | Token + HMAC，嵌套在 trigger-rule 中，配置分散 | Basic / Header / JWT / IP 白名单 | Devise 用户认证 + OAuth 服务 |
 | **路由机制** | `/webhook/{filename}` 精准路由，按需匹配 | `/hooks/{id}` 扁平路由，统一入口 | 工作流引擎 | 场景图（Agent 链接） |
 | **进程管理** | 内置 CLI 守护进程（start/stop/status） | 依赖外部 systemd 等 | Docker 容器管理 | Docker 容器管理 |
 | **配置格式** | YAML（可读性强，支持注释） | JSON / YAML | 可视化编辑器 / JSON | JSON（Agent 配置） |
-| **健康检查** | 内置 `/health` 端点，对接监控 | 无内置端点 | 有健康检查 | 有健康检查 |
-| **失败重试** | 内置指数退避 + 随机抖动 | 不支持重试 | Retry on Fail 节点 | 部分支持（场景级） |
 | **Relay 中转** | 内置多目标中转 + 动态注册池 + tag 匹配 | 不支持中转 | 需搭建 HTTP 节点工作流 | 手动配置 Scenario 代理 |
+| **失败重试** | 内置指数退避 + 随机抖动 | 不支持重试 | Retry on Fail 节点 | 部分支持（场景级） |
+| **健康检查** | 内置 `/health` 端点，对接监控 | 无内置端点 | 有健康检查 | 有健康检查 |
 | **开源协议** | MIT，完全自由使用 | MIT，完全自由使用 | Fair-code (SUL)，有商业限制 | MIT，完全自由使用 |
 
 - **安全优先** — Token 认证、HMAC 签名验证、IP 白名单，多重防护 AND 组合，保障端点安全
