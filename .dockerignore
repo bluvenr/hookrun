@@ -1,0 +1,9 @@
+.git
+.github
+dist
+pages
+docs
+*.md
+LICENSE
+build.sh
+build.ps1
