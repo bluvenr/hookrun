@@ -296,6 +296,30 @@ hookrun start -f
 
 ### Docker
 
+#### Pull pre-built image (recommended)
+
+```bash
+docker pull ghcr.io/bluvenr/hookrun:latest
+
+docker run -d --name hookrun \
+  -p 9000:9000 \
+  -v ./config.yaml:/app/config.yaml \
+  -v ./hooks:/app/hooks \
+  -v ./logs:/app/logs \
+  --restart unless-stopped \
+  ghcr.io/bluvenr/hookrun:latest
+```
+
+Available tags:
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `1.1.3` | Specific version |
+| `1.1` | Latest patch in minor version |
+
+#### Build from source
+
 ```dockerfile
 FROM golang:1.23-alpine AS builder
 WORKDIR /build
