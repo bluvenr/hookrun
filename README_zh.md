@@ -326,16 +326,16 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o hookrun ./cmd/hookrun/
+RUN CGO_ENABLED=0 go build -trimpath -o hookrun ./cmd/hookrun/
 
-FROM alpine:latest
-RUN apk --no-cache add bash
+FROM alpine:3.20
+RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /build/hookrun /app/hookrun
+COPY --from=builder /build/hookrun /usr/local/bin/hookrun
 COPY config.yaml /app/
 COPY hooks/ /app/hooks/
 EXPOSE 9000
-ENTRYPOINT ["/app/hookrun", "start", "-f", "-c", "/app/config.yaml"]
+ENTRYPOINT ["hookrun", "start", "-f", "-c", "/app/config.yaml"]
 ```
 
 ```bash
@@ -544,10 +544,10 @@ HookRun/
 │   ├── config/                # 配置解析与验证
 │   ├── server/                # HTTP 服务与路由
 │   ├── engine/                # 匹配引擎（Auth + Filter + Policy）
-│   ├── executor/              # 命令/脚本执行器
-│   ├── engine/webhook.go      # Webhook 动作转发
+│   ├── executor/              # 命令/脚本/Webhook/Relay 执行器
 │   ├── logger/                # 日志模块
-│   └── daemon/                # 守护进程管理
+│   ├── daemon/                # 守护进程管理
+│   └── version/               # 版本信息（ldflags 注入）
 ├── config.yaml                # 全局配置
 ├── hooks/                     # 规则 YAML 目录
 │   └── example.yaml

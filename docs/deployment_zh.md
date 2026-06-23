@@ -10,7 +10,7 @@
 
 ### 前置要求
 
-- Go 1.21 或更高版本
+- Go 1.23 或更高版本
 - Git
 
 ### 构建
@@ -26,7 +26,7 @@ go build -o hookrun ./cmd/hookrun/
 使用 `-ldflags` 注入版本号和构建时间：
 
 ```bash
-go build -ldflags "-X main.Version=1.1.0 -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+go build -ldflags "-X github.com/bluvenr/hookrun/internal/version.Version=1.1.3 -X 'github.com/bluvenr/hookrun/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
   -o hookrun ./cmd/hookrun/
 ```
 
@@ -177,7 +177,30 @@ hookrun reload -c /etc/hookrun/config.yaml
 
 ## 4. Docker 部署
 
-### Dockerfile
+### 方式 A：拉取预构建镜像（推荐）
+
+```bash
+docker pull ghcr.io/bluvenr/hookrun:latest
+
+docker run -d \
+  --name hookrun \
+  -p 9000:9000 \
+  -v ./config.yaml:/app/config.yaml \
+  -v ./hooks:/app/hooks \
+  -v ./logs:/app/logs \
+  --restart unless-stopped \
+  ghcr.io/bluvenr/hookrun:latest
+```
+
+可用标签：
+
+| 标签 | 说明 |
+|------|------|
+| `latest` | 最新稳定版 |
+| `1.1.3` | 指定版本 |
+| `1.1` | 当前次版本最新补丁 |
+
+### 方式 B：从源码构建
 
 ```dockerfile
 FROM golang:1.23-alpine AS builder
@@ -185,21 +208,17 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o hookrun ./cmd/hookrun/
+RUN CGO_ENABLED=0 go build -trimpath -o hookrun ./cmd/hookrun/
 
-FROM alpine:latest
-RUN apk --no-cache add bash
+FROM alpine:3.20
+RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /build/hookrun /app/hookrun
+COPY --from=builder /build/hookrun /usr/local/bin/hookrun
 COPY config.yaml /app/
 COPY hooks/ /app/hooks/
-
 EXPOSE 9000
-
-ENTRYPOINT ["/app/hookrun", "start", "-f", "-c", "/app/config.yaml"]
+ENTRYPOINT ["hookrun", "start", "-f", "-c", "/app/config.yaml"]
 ```
-
-### 构建和运行
 
 ```bash
 # 构建镜像
@@ -216,6 +235,26 @@ docker run -d \
 ```
 
 ### Docker Compose
+
+使用 GHCR 镜像（推荐）：
+
+```yaml
+version: "3.8"
+services:
+  hookrun:
+    image: ghcr.io/bluvenr/hookrun:latest
+    container_name: hookrun
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./hooks:/app/hooks
+      - ./logs:/app/logs
+      - ./scripts:/app/scripts
+    restart: unless-stopped
+```
+
+或从源码构建：
 
 ```yaml
 version: "3.8"
@@ -327,7 +366,7 @@ curl http://localhost:9000/health
 响应：
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
 ### 日志监控

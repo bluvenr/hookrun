@@ -10,7 +10,7 @@ This guide covers building, deploying, and running HookRun in production environ
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 - Git
 
 ### Build
@@ -26,7 +26,7 @@ go build -o hookrun ./cmd/hookrun/
 Use `-ldflags` to inject version and build time:
 
 ```bash
-go build -ldflags "-X main.Version=1.1.0 -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+go build -ldflags "-X github.com/bluvenr/hookrun/internal/version.Version=1.1.3 -X 'github.com/bluvenr/hookrun/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
   -o hookrun ./cmd/hookrun/
 ```
 
@@ -177,7 +177,30 @@ hookrun reload -c /etc/hookrun/config.yaml
 
 ## 4. Docker Deployment
 
-### Dockerfile
+### Option A: Pull Pre-built Image (Recommended)
+
+```bash
+docker pull ghcr.io/bluvenr/hookrun:latest
+
+docker run -d \
+  --name hookrun \
+  -p 9000:9000 \
+  -v ./config.yaml:/app/config.yaml \
+  -v ./hooks:/app/hooks \
+  -v ./logs:/app/logs \
+  --restart unless-stopped \
+  ghcr.io/bluvenr/hookrun:latest
+```
+
+Available tags:
+
+| Tag | Description |
+|-----|-------------|
+| `latest` | Latest stable release |
+| `1.1.3` | Specific version |
+| `1.1` | Latest patch in minor version |
+
+### Option B: Build from Source
 
 ```dockerfile
 FROM golang:1.23-alpine AS builder
@@ -185,21 +208,17 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o hookrun ./cmd/hookrun/
+RUN CGO_ENABLED=0 go build -trimpath -o hookrun ./cmd/hookrun/
 
-FROM alpine:latest
-RUN apk --no-cache add bash
+FROM alpine:3.20
+RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
-COPY --from=builder /build/hookrun /app/hookrun
+COPY --from=builder /build/hookrun /usr/local/bin/hookrun
 COPY config.yaml /app/
 COPY hooks/ /app/hooks/
-
 EXPOSE 9000
-
-ENTRYPOINT ["/app/hookrun", "start", "-f", "-c", "/app/config.yaml"]
+ENTRYPOINT ["hookrun", "start", "-f", "-c", "/app/config.yaml"]
 ```
-
-### Build and Run
 
 ```bash
 # Build image
@@ -216,6 +235,26 @@ docker run -d \
 ```
 
 ### Docker Compose
+
+Using GHCR image (recommended):
+
+```yaml
+version: "3.8"
+services:
+  hookrun:
+    image: ghcr.io/bluvenr/hookrun:latest
+    container_name: hookrun
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./hooks:/app/hooks
+      - ./logs:/app/logs
+      - ./scripts:/app/scripts
+    restart: unless-stopped
+```
+
+Or building from source:
 
 ```yaml
 version: "3.8"
@@ -327,7 +366,7 @@ curl http://localhost:9000/health
 Response:
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.0"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
 ### Log Monitoring

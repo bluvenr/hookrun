@@ -184,7 +184,7 @@ GET /health
 Returns:
 
 ```json
-{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "1.1.2"}
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
 ### Relay Registry API
