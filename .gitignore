@@ -9,6 +9,7 @@ dist/
 
 # Test
 *.test
+test-init*/
 
 # Output
 *.out

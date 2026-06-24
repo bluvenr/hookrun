@@ -18,6 +18,34 @@ hookrun -c /path/to/config.yaml <command>
 
 ---
 
+### `init` — 初始化配置
+
+```bash
+# 使用通用模板初始化（默认）
+hookrun init
+
+# 使用 GitHub webhook 模板初始化
+hookrun init --template github
+
+# 使用 GitLab webhook 模板初始化
+hookrun init --template gitlab
+
+# 覆盖现有文件无需确认
+hookrun init --force
+```
+
+在当前目录创建 `config.yaml` 和 `hooks/example.yaml`。
+
+可用模板：
+
+| 模板 | 说明 |
+|------|------|
+| `generic` | 通用 webhook 模板，使用 Token 认证 |
+| `github` | GitHub webhook 自动部署，使用 HMAC 认证 |
+| `gitlab` | GitLab webhook 自动部署，使用 Token 认证 |
+
+---
+
 ### `start` — 启动服务
 
 ```bash
@@ -110,11 +138,13 @@ PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
   Allow all: false
+  Max body size: 10 MB
   Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
   Rule files loaded: 1
+  Relay registry: disabled
     - github-auto-deploy (2 rules: push-to-main, tag-release) [auth: token]
 ```
 
@@ -131,7 +161,7 @@ hookrun version
 输出：
 
 ```
-HookRun v1.1.2
+HookRun vx.y.z
 Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64

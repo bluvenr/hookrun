@@ -360,6 +360,7 @@ docker run -d --name hookrun \
 
 | 命令 | 说明 |
 |------|------|
+| `hookrun init` | 初始化配置模板（generic/github/gitlab） |
 | `hookrun start` | 启动服务（默认后台守护，`-f` 前台模式） |
 | `hookrun stop` | 停止服务 |
 | `hookrun restart` | 重启服务 |

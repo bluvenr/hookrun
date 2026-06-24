@@ -18,6 +18,34 @@ Default config path: `config.yaml` (current directory).
 
 ---
 
+### `init` — Initialize Configuration
+
+```bash
+# Initialize with generic template (default)
+hookrun init
+
+# Initialize with GitHub webhook template
+hookrun init --template github
+
+# Initialize with GitLab webhook template
+hookrun init --template gitlab
+
+# Overwrite existing files without prompting
+hookrun init --force
+```
+
+Creates `config.yaml` and `hooks/example.yaml` in the current directory.
+
+Available templates:
+
+| Template | Description |
+|----------|-------------|
+| `generic` | Generic webhook template with token auth |
+| `github` | GitHub webhook auto-deploy with HMAC auth |
+| `gitlab` | GitLab webhook auto-deploy with token auth |
+
+---
+
 ### `start` — Start the Server
 
 ```bash
@@ -110,11 +138,13 @@ PASS: All configurations are valid
   Server port: 9000
   Webhook route: /webhook
   Allow all: false
+  Max body size: 10 MB
   Log mode: daily
   Log path: ./logs
   Log retention: 30 days
   Config dir: ./hooks
   Rule files loaded: 1
+  Relay registry: disabled
     - github-auto-deploy (2 rules: push-to-main, tag-release) [auth: token]
 ```
 
@@ -131,7 +161,7 @@ hookrun version
 Output:
 
 ```
-HookRun v1.1.2
+HookRun vx.y.z
 Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64

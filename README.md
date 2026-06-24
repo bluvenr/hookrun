@@ -360,6 +360,7 @@ docker run -d --name hookrun \
 
 | Command | Description |
 |---------|-------------|
+| `hookrun init` | Initialize config with templates (generic/github/gitlab) |
 | `hookrun start` | Start server (daemon by default, `-f` for foreground) |
 | `hookrun stop` | Stop the running server |
 | `hookrun restart` | Restart the server |

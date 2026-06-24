@@ -44,6 +44,7 @@ func main() {
 		statusCmd(),
 		reloadCmd(),
 		validateCmd(),
+		initCmd(),
 		versionCmd(),
 	)
 
@@ -471,6 +472,13 @@ func validateCmd() *cobra.Command {
 			fmt.Printf("  Server port: %d\n", cfg.Server.Port)
 			fmt.Printf("  Webhook route: %s\n", cfg.Server.Route)
 			fmt.Printf("  Allow all: %v\n", cfg.Server.IsAllowAll())
+			if cfg.Server.MaxBodySizeMB != nil {
+				if *cfg.Server.MaxBodySizeMB == 0 {
+					fmt.Printf("  Max body size: unlimited\n")
+				} else {
+					fmt.Printf("  Max body size: %d MB\n", *cfg.Server.MaxBodySizeMB)
+				}
+			}
 			fmt.Printf("  Log mode: %s\n", cfg.Log.Mode)
 			fmt.Printf("  Log path: %s\n", cfg.Log.Path)
 			fmt.Printf("  Log retention: %d days\n", cfg.Log.RetentionDays)
