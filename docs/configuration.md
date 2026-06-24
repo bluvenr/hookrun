@@ -71,13 +71,16 @@ server:
   max_registry_entries: 100                        # max pool capacity
 ```
 
-**Registry API endpoints** (available only when `relay_registry_token` is set):
+**Relay API endpoints**:
 
-| Method | Path | Function |
-|--------|------|----------|
-| `POST` | `/api/relay/register` | Register or refresh a target |
-| `DELETE` | `/api/relay/register` | Unregister a target |
-| `GET` | `/api/relay/targets` | List all registered targets |
+| Method | Path | Auth | Function |
+|--------|------|------|----------|
+| `GET` | `/api/relay/status` | No | Show relay role and status (always available) |
+| `POST` | `/api/relay/register` | Bearer Token | Register or refresh a target * |
+| `DELETE` | `/api/relay/register` | Bearer Token | Unregister a target * |
+| `GET` | `/api/relay/targets` | Bearer Token | List all registered targets * |
+
+\* Only available when `relay_registry_token` is set.
 
 **Registration body** (`POST /api/relay/register`):
 ```json
@@ -87,6 +90,22 @@ server:
   "tags": ["web", "prod"],
   "ttl": 120
 }
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Downstream webhook URL |
+| `token` | string | No | Downstream auth token (used when upstream relays events to this target) |
+| `tags` | array | No | Tags for target matching |
+| `ttl` | int | No | TTL in seconds (may be capped by `max_relay_ttl`) |
+
+**Authentication example** (Bearer Token = upstream's `relay_registry_token`):
+
+```bash
+curl -X POST http://upstream:9000/api/relay/register \
+  -H "Authorization: Bearer your-registry-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"http://10.0.0.5:9000/webhook","token":"downstream-auth-token","tags":["prod"],"ttl":120}'
 ```
 
 ### `relay_client` — Auto-Registration (Downstream)

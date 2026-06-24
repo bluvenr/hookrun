@@ -423,6 +423,37 @@ Response:
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
+When relay is configured, the response includes a `relay` field:
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream", "upstream_targets": 2, "downstream_connected": true}}
+```
+
+### Relay Status API
+
+Use `GET /api/relay/status` (no auth required) to get detailed relay information:
+
+```bash
+# Check relay role and connectivity
+curl http://localhost:9000/api/relay/status
+
+# Check registered downstream targets
+curl http://localhost:9000/api/relay/status | jq '.upstream.targets_count'
+```
+
+Or use the CLI:
+
+```bash
+# Show relay status
+hookrun relay status
+
+# List registered targets (token auto-read from config)
+hookrun relay targets
+
+# Override token if needed
+hookrun relay targets --token your-registry-token
+```
+
 ### Log Monitoring
 
 ```bash

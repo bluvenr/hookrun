@@ -46,6 +46,67 @@ hookrun init --force
 
 ---
 
+### `relay` — 查看 Relay 状态
+
+```bash
+# 查看当前实例的 relay 状态
+hookrun relay status
+
+# 列出已注册的下游目标（需 Bearer Token 认证）
+hookrun relay targets
+
+# 指定注册中心 Token（默认使用配置中的 relay_registry_token）
+hookrun relay targets --token your-registry-token
+```
+
+HookRun 实例可以是以下四种 relay 角色之一：
+
+| 角色 | 说明 |
+|------|------|
+| `upstream` | 接受下游注册（需配置 `relay_registry_token`） |
+| `downstream` | 向上游注册（需配置 `relay_client`） |
+| `upstream+downstream` | 同时作为上游和下游 |
+| `none` | 无 relay 配置 |
+
+**状态输出示例：**
+
+```
+Relay Status
+============
+Role: upstream + downstream
+
+Upstream (Registry):
+  Enabled:     yes
+  Targets:     3 registered
+  Max entries: 100
+  Max TTL:     300s
+
+Downstream (Client):
+  Enabled:        yes
+  Upstream:       http://main:9000
+  Registered as:  http://10.0.0.2:9000/webhook
+  Tags:           prod, web
+  TTL:            120s
+  Connected:      yes
+  Last heartbeat: 2026-06-24 14:00:00 (15s ago)
+  Failures:       0
+```
+
+**目标列表输出示例：**
+
+```
+Registered Targets (3)
++------------------------------+------------+------+---------------------+
+| URL                          | Tags       | TTL  | Last Seen           |
++------------------------------+------------+------+---------------------+
+| http://10.0.0.2:9000/webhook | prod, web  | 120s | 2026-06-24 14:00:00 |
+| http://10.0.0.3:9000/webhook | prod, api  | 120s | 2026-06-24 13:59:50 |
+| http://10.0.0.4:9000/webhook | staging    | 60s  | 2026-06-24 14:00:05 |
++------------------------------+------------+------+---------------------+
+```
+
+---
+
 ### `start` — 启动服务
 
 ```bash
@@ -217,7 +278,57 @@ GET /health
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
-### Relay Registry API
+当配置了 Relay 时，响应会包含额外的 `relay` 字段：
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream+downstream", "upstream_targets": 3, "downstream_connected": true}}
+```
+
+### Relay API
+
+#### `GET /api/relay/status` — 综合 Relay 状态（始终可用，无需认证）
+
+返回当前实例的 relay 角色和状态，无论是否配置了 relay。
+
+```bash
+curl http://hookrun:9000/api/relay/status
+```
+
+响应（上游 + 下游）：
+
+```json
+{
+  "role": "upstream+downstream",
+  "upstream": {
+    "enabled": true,
+    "targets_count": 3,
+    "max_entries": 100,
+    "max_ttl": 300
+  },
+  "downstream": {
+    "enabled": true,
+    "upstream_url": "http://main:9000",
+    "registered_url": "http://10.0.0.2:9000/webhook",
+    "tags": ["prod", "web"],
+    "ttl": 120,
+    "connected": true,
+    "last_heartbeat": "2026-06-24T14:00:00Z",
+    "fail_count": 0
+  }
+}
+```
+
+响应（无 Relay）：
+
+```json
+{
+  "role": "none",
+  "upstream": {"enabled": false},
+  "downstream": {"enabled": false}
+}
+```
+
+#### 注册池 API（需配置 `relay_registry_token`）
 
 仅在 `server.relay_registry_token` 已配置时可用（详见[配置参考](configuration_zh.md#serverrelay_registrytoken--动态目标发现)）。
 

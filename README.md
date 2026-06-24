@@ -370,6 +370,8 @@ docker run -d --name hookrun \
 | `hookrun status` | Show status (PID, port, rules count, uptime) |
 | `hookrun reload` | Hot-reload all YAML configurations |
 | `hookrun validate` | Validate all YAML files |
+| `hookrun relay status` | Show relay status (role, upstream/downstream info) |
+| `hookrun relay targets` | List registered downstream targets (token auto-read from config) |
 | `hookrun version` | Show version information |
 
 ## Configuration Guide

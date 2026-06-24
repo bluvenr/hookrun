@@ -46,6 +46,67 @@ Available templates:
 
 ---
 
+### `relay` — View Relay Status
+
+```bash
+# Show relay status for this instance
+hookrun relay status
+
+# List registered downstream targets (requires Bearer token auth)
+hookrun relay targets
+
+# Specify registry token (defaults to relay_registry_token from config)
+hookrun relay targets --token your-registry-token
+```
+
+A HookRun instance can have one of four relay roles:
+
+| Role | Description |
+|------|-------------|
+| `upstream` | Accepts downstream registrations (requires `relay_registry_token`) |
+| `downstream` | Registers to an upstream (requires `relay_client` config) |
+| `upstream+downstream` | Acts as both upstream and downstream |
+| `none` | No relay configuration |
+
+**Status output example:**
+
+```
+Relay Status
+============
+Role: upstream + downstream
+
+Upstream (Registry):
+  Enabled:     yes
+  Targets:     3 registered
+  Max entries: 100
+  Max TTL:     300s
+
+Downstream (Client):
+  Enabled:        yes
+  Upstream:       http://main:9000
+  Registered as:  http://10.0.0.2:9000/webhook
+  Tags:           prod, web
+  TTL:            120s
+  Connected:      yes
+  Last heartbeat: 2026-06-24 14:00:00 (15s ago)
+  Failures:       0
+```
+
+**Targets output example:**
+
+```
+Registered Targets (3)
++------------------------------+------------+------+---------------------+
+| URL                          | Tags       | TTL  | Last Seen           |
++------------------------------+------------+------+---------------------+
+| http://10.0.0.2:9000/webhook | prod, web  | 120s | 2026-06-24 14:00:00 |
+| http://10.0.0.3:9000/webhook | prod, api  | 120s | 2026-06-24 13:59:50 |
+| http://10.0.0.4:9000/webhook | staging    | 60s  | 2026-06-24 14:00:05 |
++------------------------------+------------+------+---------------------+
+```
+
+---
+
 ### `start` — Start the Server
 
 ```bash
@@ -217,7 +278,57 @@ Returns:
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
-### Relay Registry API
+When relay is configured, an additional `relay` field is included:
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream+downstream", "upstream_targets": 3, "downstream_connected": true}}
+```
+
+### Relay API
+
+#### `GET /api/relay/status` — Comprehensive Relay Status (always available, no auth)
+
+Returns the relay role and status for the current instance, regardless of whether relay is configured.
+
+```bash
+curl http://hookrun:9000/api/relay/status
+```
+
+Response (upstream + downstream):
+
+```json
+{
+  "role": "upstream+downstream",
+  "upstream": {
+    "enabled": true,
+    "targets_count": 3,
+    "max_entries": 100,
+    "max_ttl": 300
+  },
+  "downstream": {
+    "enabled": true,
+    "upstream_url": "http://main:9000",
+    "registered_url": "http://10.0.0.2:9000/webhook",
+    "tags": ["prod", "web"],
+    "ttl": 120,
+    "connected": true,
+    "last_heartbeat": "2026-06-24T14:00:00Z",
+    "fail_count": 0
+  }
+}
+```
+
+Response (no relay):
+
+```json
+{
+  "role": "none",
+  "upstream": {"enabled": false},
+  "downstream": {"enabled": false}
+}
+```
+
+#### Registry API (requires `relay_registry_token`)
 
 Available only when `server.relay_registry_token` is configured (see [Configuration Reference](configuration.md#serverrelay_registry_token--dynamic-target-discovery)).
 

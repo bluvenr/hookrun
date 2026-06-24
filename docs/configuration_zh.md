@@ -71,13 +71,16 @@ server:
   max_registry_entries: 100                        # 注册池容量
 ```
 
-**注册池 API 端点**（仅当 `relay_registry_token` 非空时可用）：
+**Relay API 端点**：
 
-| 方法 | 路径 | 功能 |
-|------|------|------|
-| `POST` | `/api/relay/register` | 注册或刷新目标 |
-| `DELETE` | `/api/relay/register` | 注销目标 |
-| `GET` | `/api/relay/targets` | 查看所有已注册目标 |
+| 方法 | 路径 | 认证 | 功能 |
+|------|------|------|------|
+| `GET` | `/api/relay/status` | 无需 | 查看 relay 角色和状态（始终可用） |
+| `POST` | `/api/relay/register` | Bearer Token | 注册或刷新目标 * |
+| `DELETE` | `/api/relay/register` | Bearer Token | 注销目标 * |
+| `GET` | `/api/relay/targets` | Bearer Token | 查看所有已注册目标 * |
+
+\* 仅当 `relay_registry_token` 非空时可用。
 
 **注册请求体**（`POST /api/relay/register`）：
 ```json
@@ -87,6 +90,22 @@ server:
   "tags": ["web", "prod"],
   "ttl": 120
 }
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `url` | string | 是 | 下游 webhook URL |
+| `token` | string | 否 | 下游自身的 webhook 认证 token（上游中转事件时用于向下游认证） |
+| `tags` | array | 否 | 目标匹配标签 |
+| `ttl` | int | 否 | TTL 秒数（可能被上游 `max_relay_ttl` 截断） |
+
+**认证示例**（Bearer Token = 上游配置的 `relay_registry_token`）：
+
+```bash
+curl -X POST http://upstream:9000/api/relay/register \
+  -H "Authorization: Bearer your-registry-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"http://10.0.0.5:9000/webhook","token":"downstream-auth-token","tags":["prod"],"ttl":120}'
 ```
 
 ### `relay_client` — 自动注册（下游）

@@ -423,6 +423,37 @@ curl http://localhost:9000/health
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z"}
 ```
 
+当配置了 Relay 时，响应会包含 `relay` 字段：
+
+```json
+{"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream", "upstream_targets": 2, "downstream_connected": true}}
+```
+
+### Relay 状态 API
+
+使用 `GET /api/relay/status`（无需认证）获取详细的 relay 信息：
+
+```bash
+# 查看 relay 角色和连接状态
+curl http://localhost:9000/api/relay/status
+
+# 查看已注册的下游目标数
+curl http://localhost:9000/api/relay/status | jq '.upstream.targets_count'
+```
+
+或使用 CLI：
+
+```bash
+# 查看 relay 状态
+hookrun relay status
+
+# 列出已注册的下游目标（自动读取配置中的 Token）
+hookrun relay targets
+
+# 如需覆盖 Token
+hookrun relay targets --token your-registry-token
+```
+
 ### 日志监控
 
 ```bash
