@@ -10,6 +10,7 @@ dist/
 # Test
 *.test
 test-init*/
+test-relay*/
 
 # Output
 *.out

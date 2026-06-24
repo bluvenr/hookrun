@@ -210,3 +210,93 @@ func (s *Server) checkRegistryAuth(r *http.Request) bool {
 func durationSeconds(s int) time.Duration {
 	return time.Duration(s) * time.Second
 }
+
+// relayStatusResponse is the JSON response for GET /api/relay/status.
+type relayStatusResponse struct {
+	Role       string                   `json:"role"`
+	Upstream   upstreamStatusResponse   `json:"upstream"`
+	Downstream downstreamStatusResponse `json:"downstream"`
+}
+
+type upstreamStatusResponse struct {
+	Enabled      bool `json:"enabled"`
+	TargetsCount int  `json:"targets_count,omitempty"`
+	MaxEntries   int  `json:"max_entries,omitempty"`
+	MaxTTL       int  `json:"max_ttl,omitempty"`
+}
+
+type downstreamStatusResponse struct {
+	Enabled       bool     `json:"enabled"`
+	UpstreamURL   string   `json:"upstream_url,omitempty"`
+	RegisteredURL string   `json:"registered_url,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	TTL           int      `json:"ttl,omitempty"`
+	Connected     bool     `json:"connected,omitempty"`
+	LastHeartbeat string   `json:"last_heartbeat,omitempty"`
+	FailCount     int      `json:"fail_count,omitempty"`
+}
+
+// handleRelayStatus handles GET /api/relay/status.
+// Returns comprehensive relay status for the current instance.
+func (s *Server) handleRelayStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "method not allowed",
+		})
+		return
+	}
+
+	cfg := s.configMgr.Global()
+	isUpstream := cfg.Server.IsRelayRegistryEnabled()
+	isDownstream := s.relayClient != nil
+
+	// Determine role
+	var role string
+	switch {
+	case isUpstream && isDownstream:
+		role = "upstream+downstream"
+	case isUpstream:
+		role = "upstream"
+	case isDownstream:
+		role = "downstream"
+	default:
+		role = "none"
+	}
+
+	response := relayStatusResponse{
+		Role: role,
+		Upstream: upstreamStatusResponse{
+			Enabled: isUpstream,
+		},
+		Downstream: downstreamStatusResponse{
+			Enabled: isDownstream,
+		},
+	}
+
+	// Fill upstream details
+	if isUpstream {
+		registry := s.engine.Registry()
+		if registry != nil {
+			response.Upstream.TargetsCount = registry.Count()
+			response.Upstream.MaxEntries = cfg.Server.MaxRegistryEntries
+			response.Upstream.MaxTTL = cfg.Server.MaxRelayTTL
+		}
+	}
+
+	// Fill downstream details
+	if isDownstream && s.relayClient != nil {
+		status := s.relayClient.Status()
+		response.Downstream.UpstreamURL = status.Upstream
+		response.Downstream.RegisteredURL = status.RegisteredURL
+		response.Downstream.Tags = status.Tags
+		response.Downstream.TTL = status.TTL
+		response.Downstream.Connected = status.Connected
+		response.Downstream.FailCount = status.FailCount
+		if !status.LastHeartbeat.IsZero() {
+			response.Downstream.LastHeartbeat = status.LastHeartbeat.Format("2006-01-02T15:04:05Z")
+		}
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}

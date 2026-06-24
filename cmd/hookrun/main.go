@@ -45,6 +45,7 @@ func main() {
 		reloadCmd(),
 		validateCmd(),
 		initCmd(),
+		relayCmd(),
 		versionCmd(),
 	)
 
@@ -128,6 +129,9 @@ func runServer() error {
 
 	// Create server and start HTTP listener (non-blocking)
 	srv := server.New(configMgr, eng, log)
+	if relayClient != nil {
+		srv.SetRelayClient(relayClient)
+	}
 	if err := srv.ListenAndServe(); err != nil {
 		return fmt.Errorf("server start: %w", err)
 	}

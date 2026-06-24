@@ -20,12 +20,13 @@ import (
 
 // Server wraps the HTTP server and all dependencies.
 type Server struct {
-	httpServer *http.Server
-	engine     *engine.Engine
-	configMgr  *config.Manager
-	logger     *logger.Logger
-	startTime  time.Time
-	errCh      chan error // captures HTTP server listen errors
+	httpServer  *http.Server
+	engine      *engine.Engine
+	configMgr   *config.Manager
+	logger      *logger.Logger
+	startTime   time.Time
+	errCh       chan error // captures HTTP server listen errors
+	relayClient *engine.RelayClient
 }
 
 // New creates a new Server instance.
@@ -35,6 +36,11 @@ func New(configMgr *config.Manager, eng *engine.Engine, log *logger.Logger) *Ser
 		configMgr: configMgr,
 		logger:    log,
 	}
+}
+
+// SetRelayClient sets the relay client for status queries.
+func (s *Server) SetRelayClient(client *engine.RelayClient) {
+	s.relayClient = client
 }
 
 // Start begins listening for HTTP requests and blocks until a shutdown signal is received.
@@ -81,6 +87,9 @@ func (s *Server) ListenAndServe() error {
 
 	// Reload endpoint (internal use)
 	mux.HandleFunc("/_reload", s.handleReload)
+
+	// Relay status API (always available)
+	mux.HandleFunc("/api/relay/status", s.handleRelayStatus)
 
 	// Relay registry API (conditionally registered)
 	if cfg.Server.IsRelayRegistryEnabled() {
@@ -259,12 +268,62 @@ func targetOrAll(target string) string {
 // handleHealth returns server health status.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	uptime := time.Since(s.startTime)
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+
+	response := map[string]interface{}{
 		"status":  "ok",
 		"uptime":  uptime.String(),
 		"rules":   s.configMgr.RuleCount(),
 		"version": version.Version,
-	})
+	}
+
+	// Add relay info if available
+	relayInfo := s.buildRelayInfo()
+	if relayInfo != nil {
+		response["relay"] = relayInfo
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+// buildRelayInfo builds the relay status info for health endpoint.
+func (s *Server) buildRelayInfo() map[string]interface{} {
+	cfg := s.configMgr.Global()
+	isUpstream := cfg.Server.IsRelayRegistryEnabled()
+	isDownstream := s.relayClient != nil
+
+	if !isUpstream && !isDownstream {
+		return nil
+	}
+
+	info := make(map[string]interface{})
+
+	// Determine role
+	var role string
+	switch {
+	case isUpstream && isDownstream:
+		role = "upstream+downstream"
+	case isUpstream:
+		role = "upstream"
+	case isDownstream:
+		role = "downstream"
+	}
+	info["role"] = role
+
+	// Upstream info
+	if isUpstream {
+		registry := s.engine.Registry()
+		if registry != nil {
+			info["upstream_targets"] = registry.Count()
+		}
+	}
+
+	// Downstream info
+	if isDownstream {
+		status := s.relayClient.Status()
+		info["downstream_connected"] = status.Connected
+	}
+
+	return info
 }
 
 // handleReload triggers a hot-reload of all configs.

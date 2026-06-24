@@ -22,9 +22,37 @@ type RelayClient struct {
 	url    string // resolved local URL
 	stop   chan struct{}
 
-	mu             sync.Mutex
-	failCount      int // consecutive failure count for log degradation
-	debounceLogged bool
+	mu            sync.Mutex
+	failCount     int       // consecutive failure count for log degradation
+	lastHeartbeat time.Time // last successful heartbeat time
+	connected     bool      // current connection status
+}
+
+// ClientStatus represents the current relay client status.
+type ClientStatus struct {
+	Upstream      string    `json:"upstream"`
+	RegisteredURL string    `json:"registered_url"`
+	Tags          []string  `json:"tags"`
+	TTL           int       `json:"ttl"`
+	Connected     bool      `json:"connected"`
+	LastHeartbeat time.Time `json:"last_heartbeat,omitempty"`
+	FailCount     int       `json:"fail_count"`
+}
+
+// Status returns the current relay client status.
+func (rc *RelayClient) Status() ClientStatus {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	return ClientStatus{
+		Upstream:      rc.config.Upstream,
+		RegisteredURL: rc.url,
+		Tags:          rc.config.Tags,
+		TTL:           rc.config.TTL,
+		Connected:     rc.connected,
+		LastHeartbeat: rc.lastHeartbeat,
+		FailCount:     rc.failCount,
+	}
 }
 
 // NewRelayClient creates a new relay client for auto-registration.
@@ -48,9 +76,14 @@ func (rc *RelayClient) Start() {
 		rc.logger.Warn("Relay client: initial registration failed: %v (will retry via heartbeat)", err)
 		rc.mu.Lock()
 		rc.failCount = 1
+		rc.connected = false
 		rc.mu.Unlock()
 	} else {
 		rc.logger.Info("Relay client: registered successfully")
+		rc.mu.Lock()
+		rc.connected = true
+		rc.lastHeartbeat = time.Now()
+		rc.mu.Unlock()
 	}
 
 	// Start heartbeat goroutine
@@ -218,6 +251,7 @@ func (rc *RelayClient) heartbeatLoop() {
 			if err := rc.register(); err != nil {
 				rc.mu.Lock()
 				rc.failCount++
+				rc.connected = false
 				count := rc.failCount
 				rc.mu.Unlock()
 
@@ -233,6 +267,8 @@ func (rc *RelayClient) heartbeatLoop() {
 					rc.logger.Info("Relay client: heartbeat recovered after %d failures", rc.failCount)
 				}
 				rc.failCount = 0
+				rc.connected = true
+				rc.lastHeartbeat = time.Now()
 				rc.mu.Unlock()
 			}
 
