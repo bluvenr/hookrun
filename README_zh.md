@@ -197,15 +197,18 @@ relay_client:
 ### 安装
 
 ```bash
-# 方式一：从源码编译
+# 方式一：一键安装（推荐，无需 Go 环境、无需 Docker）
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | bash
+
+# 方式二：从源码编译
 git clone https://github.com/bluvenr/hookrun.git
 cd hookrun
 go build -o hookrun ./cmd/hookrun/
 
-# 方式二：go install
+# 方式三：go install
 go install github.com/bluvenr/hookrun/cmd/hookrun@latest
 
-# 方式三：下载预编译二进制
+# 方式四：下载预编译二进制
 # 访问 https://github.com/bluvenr/hookrun/releases
 ```
 

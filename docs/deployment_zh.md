@@ -6,6 +6,60 @@
 
 ---
 
+## 0. 一键安装（推荐）
+
+无需 Go 环境，无需 Docker，一条命令搞定：
+
+```bash
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | bash
+```
+
+执行流程：
+1. 自动检测操作系统（Linux/macOS）和架构（amd64/arm64）
+2. 从 GitHub Releases 下载**最新版**预编译二进制
+3. 安装到 `/usr/local/bin/hookrun`
+4. 运行 `hookrun init` 生成 `config.yaml` 和 `hooks/example.yaml`
+
+### 自定义选项
+
+通过环境变量控制安装行为：
+
+```bash
+# 安装指定版本
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_VERSION=1.1.3 bash
+
+# 自定义安装目录
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_INSTALL_DIR=$HOME/bin bash
+
+# 使用 GitHub Webhook 模板
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_TEMPLATE=github bash
+
+# 仅安装二进制，跳过配置初始化
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_INIT_DIR=skip bash
+```
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `HOOKRUN_VERSION` | latest | 指定版本号（如 `1.1.3`） |
+| `HOOKRUN_INSTALL_DIR` | `/usr/local/bin` | 二进制安装路径 |
+| `HOOKRUN_INIT_DIR` | `.`（当前目录） | 配置初始化目录，填 `skip` 跳过 |
+| `HOOKRUN_TEMPLATE` | `generic` | 初始化模板：`generic`、`github`、`gitlab` |
+
+### 安装后
+
+```bash
+# 校验配置
+hookrun validate
+
+# 启动服务
+hookrun start
+
+# 查看状态
+hookrun status
+```
+
+---
+
 ## 1. 从源码构建
 
 ### 前置要求

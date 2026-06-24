@@ -6,6 +6,60 @@ This guide covers building, deploying, and running HookRun in production environ
 
 ---
 
+## 0. One-Liner Install (Recommended)
+
+No Go, no Docker — just one command:
+
+```bash
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | bash
+```
+
+What it does:
+1. Auto-detects your OS (Linux/macOS) and architecture (amd64/arm64)
+2. Downloads the **latest** pre-built binary from GitHub Releases
+3. Installs to `/usr/local/bin/hookrun`
+4. Runs `hookrun init` to generate `config.yaml` and `hooks/example.yaml`
+
+### Custom Options
+
+Use environment variables to customize:
+
+```bash
+# Install a specific version
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_VERSION=1.1.3 bash
+
+# Custom install directory
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_INSTALL_DIR=$HOME/bin bash
+
+# Use GitHub webhook template
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_TEMPLATE=github bash
+
+# Skip config init (binary only)
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | HOOKRUN_INIT_DIR=skip bash
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOOKRUN_VERSION` | latest | Pin a specific version (e.g. `1.1.3`) |
+| `HOOKRUN_INSTALL_DIR` | `/usr/local/bin` | Binary install path |
+| `HOOKRUN_INIT_DIR` | `.` (current dir) | Directory for config init. `skip` to skip |
+| `HOOKRUN_TEMPLATE` | `generic` | Init template: `generic`, `github`, `gitlab` |
+
+### After Install
+
+```bash
+# Validate configuration
+hookrun validate
+
+# Start server
+hookrun start
+
+# Check status
+hookrun status
+```
+
+---
+
 ## 1. Build from Source
 
 ### Prerequisites

@@ -197,15 +197,18 @@ relay_client:
 ### Install
 
 ```bash
-# Option 1: Build from source
+# Option 1: One-liner install (recommended — no Go, no Docker)
+curl -fsSL https://bluvenr.github.io/hookrun/install.sh | bash
+
+# Option 2: Build from source
 git clone https://github.com/bluvenr/hookrun.git
 cd hookrun
 go build -o hookrun ./cmd/hookrun/
 
-# Option 2: go install
+# Option 3: go install
 go install github.com/bluvenr/hookrun/cmd/hookrun@latest
 
-# Option 3: Download pre-built binary
+# Option 4: Download pre-built binary
 # Visit https://github.com/bluvenr/hookrun/releases
 ```
 
