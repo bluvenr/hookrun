@@ -55,6 +55,8 @@ A HookRun instance can be:
   - Downstream: registers to an upstream (relay_client configured)
   - Both: acts as both upstream and downstream
   - None: no relay configuration`,
+		Example: `  hookrun relay status             # Show relay status
+  hookrun relay targets            # List registered targets`,
 	}
 
 	cmd.AddCommand(
@@ -69,6 +71,11 @@ func relayStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show Relay status for this instance",
+		Long: `Show the relay status for this HookRun instance. Displays the relay role
+(upstream/downstream/both/none) and detailed status for each active role,
+including connection state, heartbeat info, and failure count.`,
+		Example: `  hookrun relay status
+  hookrun relay status -c /etc/hookrun/config.yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return showRelayStatus()
 		},
@@ -81,6 +88,11 @@ func relayTargetsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "targets",
 		Short: "List registered downstream targets (requires Bearer token auth)",
+		Long: `List all registered downstream targets from the upstream instance. Requires
+Bearer token authentication (registry token). The token is auto-read from
+config.yaml by default, or can be overridden with --token flag.`,
+		Example: `  hookrun relay targets                         # Token auto-read from config
+  hookrun relay targets --token <registry-token>  # Override token manually`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return showRelayTargets(token)
 		},

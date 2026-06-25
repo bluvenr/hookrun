@@ -32,7 +32,15 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "hookrun",
 		Short: "HookRun - Webhook Action Engine",
-		Long:  "A lightweight webhook listener that executes custom commands based on YAML rules.",
+		Long: `HookRun is a lightweight webhook listener that executes custom commands
+based on YAML rules. It supports token/HMAC authentication, failure retry,
+relay forwarding, and hot-reload.`,
+		Example: `  hookrun start                        # Start in daemon mode
+  hookrun start -f                     # Start in foreground
+  hookrun validate                     # Validate all YAML files
+  hookrun init --template github       # Initialize with GitHub template
+  hookrun help                         # Show all available commands
+  hookrun help <command>               # Show help for a specific command`,
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "config.yaml", "Path to global config file")
@@ -59,6 +67,11 @@ func startCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the HookRun server",
+		Long: `Start the HookRun webhook server. By default, the server runs in daemon
+mode (background). Use -f flag to run in foreground mode for debugging.`,
+		Example: `  hookrun start                    # Daemon mode (default)
+  hookrun start -f                 # Foreground mode
+  hookrun start -c /etc/hookrun/config.yaml  # Custom config path`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if already running
 			pid, err := daemon.ReadPID()
@@ -264,6 +277,9 @@ func stopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the HookRun server",
+		Long: `Stop the running HookRun server gracefully. On Linux/macOS, sends SIGTERM
+to the process. On Windows, uses a signal file for graceful shutdown.`,
+		Example: `  hookrun stop`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pid, err := daemon.ReadPID()
 			if err != nil {
@@ -303,6 +319,10 @@ func restartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the HookRun server",
+		Long: `Restart the HookRun server by stopping and starting it. Supports both
+daemon and foreground modes.`,
+		Example: `  hookrun restart                  # Restart in daemon mode
+  hookrun restart -f               # Restart in foreground mode`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Stop
 			pid, err := daemon.ReadPID()
@@ -338,6 +358,9 @@ func statusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show HookRun server status",
+		Long: `Show the current status of the HookRun server, including PID, uptime,
+memory usage, and port information.`,
+		Example: `  hookrun status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pid, err := daemon.ReadPID()
 			if err != nil {
@@ -404,6 +427,9 @@ func reloadCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reload",
 		Short: "Hot-reload all YAML configurations",
+		Long: `Hot-reload all YAML configuration files (global config, hook rules, and
+local configs) without restarting the server. Changes take effect immediately.`,
+		Example: `  hookrun reload`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pid, err := daemon.ReadPID()
 			if err != nil {
@@ -453,6 +479,10 @@ func validateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "validate",
 		Short: "Validate all YAML configuration files",
+		Long: `Validate the global config.yaml and all hook YAML files in the config_dir.
+Reports syntax errors and configuration issues without starting the server.`,
+		Example: `  hookrun validate                 # Validate default config.yaml
+  hookrun validate -c /etc/hookrun/config.yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Validating config: %s\n", configPath)
 
@@ -542,8 +572,10 @@ func validateCmd() *cobra.Command {
 // ---- version command ----
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Show version information",
+		Use:     "version",
+		Short:   "Show version information",
+		Long:    "Show the version, build time, Go version, and OS/architecture of this binary.",
+		Example: `  hookrun version`,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("HookRun v%s\n", version.Version)
 			fmt.Printf("Build time: %s\n", version.BuildTime)
