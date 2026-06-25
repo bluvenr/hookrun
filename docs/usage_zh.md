@@ -230,6 +230,25 @@ OS/Arch:    linux/amd64
 
 ---
 
+### `help` — 查看帮助
+
+```bash
+# 显示所有可用命令
+hookrun help
+
+# 显示指定命令的帮助
+hookrun help relay
+hookrun help relay status
+
+# 也可使用 --help 或 -h 参数
+hookrun start --help
+hookrun relay -h
+```
+
+所有命令均支持 `--help` / `-h` 参数，用于显示详细用法和示例。
+
+---
+
 ## 2. Webhook 路由
 
 HookRun 支持两种 URL 模式：

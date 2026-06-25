@@ -230,6 +230,25 @@ OS/Arch:    linux/amd64
 
 ---
 
+### `help` — Show Help
+
+```bash
+# Show all available commands
+hookrun help
+
+# Show help for a specific command
+hookrun help relay
+hookrun help relay status
+
+# Alternative: use --help or -h flag
+hookrun start --help
+hookrun relay -h
+```
+
+All commands support `--help` / `-h` flag to display detailed usage and examples.
+
+---
+
 ## 2. Webhook Routing
 
 HookRun supports two URL patterns:
