@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -93,6 +92,8 @@ mode (background). Use -f flag to run in foreground mode for debugging.`,
 
 // runServer starts the server in the current process.
 func runServer() error {
+	startTime := time.Now()
+
 	// Load config
 	configMgr := config.NewManager(configPath)
 	if err := configMgr.Load(); err != nil {
@@ -119,7 +120,7 @@ func runServer() error {
 	}
 	defer daemon.RemovePID()
 
-	if err := daemon.WriteStatus(cfg.Server.Port, configMgr.RuleCount()); err != nil {
+	if err := daemon.WriteStatus(cfg.Server.Port, configMgr.RuleCount(), startTime); err != nil {
 		log.Error("Failed to write status: %v", err)
 	}
 
@@ -153,28 +154,43 @@ func runServer() error {
 	stopCh := make(chan struct{})
 
 	// Start signal file watcher (primary IPC on Windows, reload on all platforms)
-	go watchSignalFiles(srv, eng, relayClient, configMgr, log, stopCh)
+	go watchSignalFiles(srv, eng, relayClient, configMgr, log, stopCh, startTime)
 
-	// On non-Windows: also listen for OS signals (SIGTERM/SIGINT)
+	// On non-Windows: also listen for OS signals (SIGTERM/SIGINT, SIGHUP=reload)
 	if runtime.GOOS != "windows" {
 		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-		// Use a goroutine to translate OS signal into stopCh
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		// Translate OS signals: SIGHUP triggers reload, others shut down
 		go func() {
-			sig := <-sigCh
-			log.Info("Received signal %v, initiating graceful shutdown...", sig)
-			if relayClient != nil {
-				relayClient.Stop()
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			if err := srv.GracefulShutdown(ctx); err != nil {
-				log.Error("Graceful shutdown error: %v", err)
-			}
-			cancel()
-			select {
-			case <-stopCh: // already closed by watcher
-			default:
-				close(stopCh)
+			for sig := range sigCh {
+				if sig == syscall.SIGHUP {
+					log.Info("Received SIGHUP, reloading configs...")
+					if err := configMgr.Reload(); err != nil {
+						log.Error("Reload failed: %v", err)
+						continue
+					}
+					eng.CloseRuleLoggers()
+					eng.UpdateConfigs(configMgr.Rules())
+					log.Info("Reload successful, loaded %d rule(s)", configMgr.RuleCount())
+					_ = daemon.WriteStatus(configMgr.Global().Server.Port, configMgr.RuleCount(), startTime)
+					continue
+				}
+
+				log.Info("Received signal %v, initiating graceful shutdown...", sig)
+				if relayClient != nil {
+					relayClient.Stop()
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				if err := srv.GracefulShutdown(ctx); err != nil {
+					log.Error("Graceful shutdown error: %v", err)
+				}
+				cancel()
+				select {
+				case <-stopCh: // already closed by watcher
+				default:
+					close(stopCh)
+				}
+				return
 			}
 		}()
 	}
@@ -197,7 +213,7 @@ func runServer() error {
 // watchSignalFiles polls for signal files (cross-platform IPC).
 // On Windows, it handles graceful shutdown by stopping relay client and HTTP server
 // before signaling the main goroutine to return (instead of os.Exit(0)).
-func watchSignalFiles(srv *server.Server, eng *engine.Engine, relayClient *engine.RelayClient, configMgr *config.Manager, log *logger.Logger, stopCh chan struct{}) {
+func watchSignalFiles(srv *server.Server, eng *engine.Engine, relayClient *engine.RelayClient, configMgr *config.Manager, log *logger.Logger, stopCh chan struct{}, startTime time.Time) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -213,7 +229,7 @@ func watchSignalFiles(srv *server.Server, eng *engine.Engine, relayClient *engin
 				log.Info("Reload successful, loaded %d rule(s)", configMgr.RuleCount())
 			}
 			cfg := configMgr.Global()
-			_ = daemon.WriteStatus(cfg.Server.Port, configMgr.RuleCount())
+			_ = daemon.WriteStatus(cfg.Server.Port, configMgr.RuleCount(), startTime)
 		}
 
 		// Check stop signal — graceful shutdown (no os.Exit!)
@@ -379,6 +395,7 @@ memory usage, and port information.`,
 
 			// Try to get status from API
 			statusData, err := daemon.ReadStatus()
+			uptimeShown := false
 			if err == nil {
 				var info struct {
 					Port      int    `json:"port"`
@@ -393,12 +410,13 @@ memory usage, and port information.`,
 							uptime := time.Since(t).Round(time.Second)
 							fmt.Printf("Uptime:  %s\n", uptime)
 							fmt.Printf("Started: %s\n", t.Format("2006-01-02 15:04:05"))
+							uptimeShown = true
 						}
 					}
 				}
 			}
 
-			// Try health endpoint
+			// Try health endpoint (uptime only if not already shown from status.json)
 			cfg := config.Defaults()
 			configMgr := config.NewManager(configPath)
 			if err := configMgr.Load(); err == nil {
@@ -410,8 +428,10 @@ memory usage, and port information.`,
 				if resp.StatusCode == 200 {
 					var health map[string]interface{}
 					if json.NewDecoder(resp.Body).Decode(&health) == nil {
-						if uptime, ok := health["uptime"].(string); ok {
-							fmt.Printf("Uptime:  %s\n", uptime)
+						if !uptimeShown {
+							if uptime, ok := health["uptime"].(string); ok {
+								fmt.Printf("Uptime:  %s\n", uptime)
+							}
 						}
 					}
 				}
@@ -605,8 +625,3 @@ func setProcessGroup(cmd *exec.Cmd) {
 // unixSighup() and setSysProcAttr() are defined in platform-specific files:
 // - platform_unix.go (Linux/macOS)
 // - platform_windows.go (Windows)
-
-// Helper to suppress unused import warnings
-func init() {
-	_ = strconv.Itoa
-}

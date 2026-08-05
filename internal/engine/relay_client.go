@@ -23,6 +23,7 @@ type RelayClient struct {
 	stop   chan struct{}
 
 	mu            sync.Mutex
+	stopOnce      sync.Once // guard against double Stop (channel close panic)
 	failCount     int       // consecutive failure count for log degradation
 	lastHeartbeat time.Time // last successful heartbeat time
 	connected     bool      // current connection status
@@ -91,15 +92,18 @@ func (rc *RelayClient) Start() {
 }
 
 // Stop sends an unregistration request and stops the heartbeat.
+// Safe to call multiple times — subsequent calls are no-ops.
 func (rc *RelayClient) Stop() {
-	close(rc.stop)
+	rc.stopOnce.Do(func() {
+		close(rc.stop)
 
-	// Attempt unregistration with a short timeout
-	if err := rc.unregister(); err != nil {
-		rc.logger.Warn("Relay client: unregistration failed: %v", err)
-	} else {
-		rc.logger.Info("Relay client: unregistered from upstream")
-	}
+		// Attempt unregistration with a short timeout
+		if err := rc.unregister(); err != nil {
+			rc.logger.Warn("Relay client: unregistration failed: %v", err)
+		} else {
+			rc.logger.Info("Relay client: unregistered from upstream")
+		}
+	})
 }
 
 // resolveURL determines the local URL to register with upstream.

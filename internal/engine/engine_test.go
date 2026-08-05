@@ -306,30 +306,63 @@ func TestResolvePolicy_DefaultBlock(t *testing.T) {
 	}
 }
 
-// --- checkPolicy ---
+// --- tryAcquire ---
 
-func TestCheckPolicy_Always(t *testing.T) {
+func TestTryAcquire_Always(t *testing.T) {
 	e := newTestEngine(t)
 	policy := config.ExecutionConfig{Policy: "always"}
-	if blocked := e.checkPolicy("test/task", policy); blocked != nil {
+	if blocked := e.tryAcquire("test/task", policy); blocked != nil {
 		t.Error("always policy should never block")
+	}
+	// Second concurrent acquire must also pass
+	if blocked := e.tryAcquire("test/task", policy); blocked != nil {
+		t.Error("always policy should never block, even when running")
 	}
 }
 
-func TestCheckPolicy_BlockWhenRunning(t *testing.T) {
+func TestTryAcquire_BlockWhenRunning(t *testing.T) {
 	e := newTestEngine(t)
 	e.running["test/task"] = true
 	policy := config.ExecutionConfig{Policy: "block"}
-	if blocked := e.checkPolicy("test/task", policy); blocked == nil {
+	if blocked := e.tryAcquire("test/task", policy); blocked == nil {
 		t.Error("block policy should block when running")
 	}
 }
 
-func TestCheckPolicy_BlockWhenNotRunning(t *testing.T) {
+func TestTryAcquire_BlockWhenNotRunning(t *testing.T) {
 	e := newTestEngine(t)
 	policy := config.ExecutionConfig{Policy: "block"}
-	if blocked := e.checkPolicy("test/task", policy); blocked != nil {
+	if blocked := e.tryAcquire("test/task", policy); blocked != nil {
 		t.Error("block policy should not block when not running")
+	}
+	// Acquire must mark the task running atomically
+	if !e.running["test/task"] {
+		t.Error("tryAcquire should mark task as running")
+	}
+	if blocked := e.tryAcquire("test/task", policy); blocked == nil {
+		t.Error("second acquire should be blocked while running")
+	}
+}
+
+func TestTryAcquire_CooldownWithinWindow(t *testing.T) {
+	e := newTestEngine(t)
+	policy := config.ExecutionConfig{Policy: "cooldown", CooldownSeconds: 60}
+	if blocked := e.tryAcquire("test/task", policy); blocked != nil {
+		t.Error("first acquire should pass")
+	}
+	e.markDone("test/task")
+	// Task finished, but still inside the cooldown window -> must block
+	if blocked := e.tryAcquire("test/task", policy); blocked == nil {
+		t.Error("cooldown policy should block within window even when not running")
+	}
+}
+
+func TestTryAcquire_CooldownExpired(t *testing.T) {
+	e := newTestEngine(t)
+	policy := config.ExecutionConfig{Policy: "cooldown", CooldownSeconds: 1}
+	e.lastRun["test/task"] = time.Now().Add(-2 * time.Second)
+	if blocked := e.tryAcquire("test/task", policy); blocked != nil {
+		t.Error("cooldown policy should pass after window elapsed")
 	}
 }
 

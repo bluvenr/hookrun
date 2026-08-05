@@ -16,7 +16,6 @@ const PIDFileName = "hookrun.pid"
 const (
 	ReloadSignalFile = "reload.signal"
 	StopSignalFile   = "stop.signal"
-	StatusSignalFile = "status.signal"
 )
 
 // GetHookRunDir returns the HookRun data directory (~/.hookrun).
@@ -79,21 +78,12 @@ func CheckSignalFile(signal string) bool {
 	return false
 }
 
-// GetStartTime reads the process start time.
-func GetStartTime(pid int) (time.Time, error) {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return time.Time{}, err
-	}
-	_ = process // Platform-specific implementation would go here
-	return time.Time{}, fmt.Errorf("not implemented for this platform")
-}
-
 // WriteStatus writes current status info for the status command to read.
-func WriteStatus(port int, ruleCount int) error {
+// startTime is the original process start time so reloads don't reset uptime.
+func WriteStatus(port int, ruleCount int, startTime time.Time) error {
 	statusFile := filepath.Join(GetHookRunDir(), "status.json")
 	content := fmt.Sprintf(`{"pid":%d,"port":%d,"rules":%d,"start_time":"%s"}`,
-		os.Getpid(), port, ruleCount, time.Now().Format(time.RFC3339))
+		os.Getpid(), port, ruleCount, startTime.Format(time.RFC3339))
 	return os.WriteFile(statusFile, []byte(content), 0644)
 }
 

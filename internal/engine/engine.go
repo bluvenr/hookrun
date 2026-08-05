@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,31 @@ import (
 	"github.com/bluvenr/hookrun/internal/executor"
 	"github.com/bluvenr/hookrun/internal/logger"
 )
+
+// Precompiled template patterns (compiled once, reused per request).
+var (
+	tmplRawBodyRe = regexp.MustCompile(`\{\{\s*\.raw_body\s*\}\}`)
+	tmplBodyRe    = regexp.MustCompile(`\{\{\s*\.body\.([^}\s]+)\s*\}\}`)
+	tmplHeaderRe  = regexp.MustCompile(`\{\{\s*\.header\.([^}\s]+)\s*\}\}`)
+	tmplQueryRe   = regexp.MustCompile(`\{\{\s*\.query\.([^}\s]+)\s*\}\}`)
+	arrayIndexRe  = regexp.MustCompile(`^(\w+)\[(\d+)\]$`)
+)
+
+// regexCache caches compiled filter regexes (pattern -> *regexp.Regexp).
+var regexCache sync.Map
+
+// compileCached returns a compiled regex for the pattern, reusing cached results.
+func compileCached(pattern string) (*regexp.Regexp, error) {
+	if v, ok := regexCache.Load(pattern); ok {
+		return v.(*regexp.Regexp), nil
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+	regexCache.Store(pattern, re)
+	return re, nil
+}
 
 // Response is the standard JSON response structure.
 type Response struct {
@@ -130,10 +156,15 @@ func (e *Engine) Registry() *TargetRegistry {
 }
 
 // getRuleLogger returns (or creates) a rule-level logger for the given config.
+// Access to the ruleLoggers cache is guarded by e.mu because reload may
+// close and replace cached loggers concurrently with request handling.
 func (e *Engine) getRuleLogger(cfg *config.RuleConfig) logger.LogWriter {
 	if cfg.Log == nil || cfg.Log.Path == "" {
 		return nil
 	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	// Check cache
 	if rl, ok := e.ruleLoggers[cfg.Name]; ok {
@@ -148,6 +179,8 @@ func (e *Engine) getRuleLogger(cfg *config.RuleConfig) logger.LogWriter {
 
 // CloseRuleLoggers closes all rule-level loggers.
 func (e *Engine) CloseRuleLoggers() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	for _, rl := range e.ruleLoggers {
 		rl.Close()
 	}
@@ -155,7 +188,8 @@ func (e *Engine) CloseRuleLoggers() {
 }
 
 // Process handles an incoming webhook request by iterating all configs.
-// Stops at the first matching rule (first match wins).
+// Stops at the first matching rule (first match wins). Configs whose auth
+// check fails are skipped so they cannot block other configs in the chain.
 func (e *Engine) Process(req *RequestData) []Response {
 	e.mu.RLock()
 	configs := make([]*config.RuleConfig, len(e.configs))
@@ -163,6 +197,10 @@ func (e *Engine) Process(req *RequestData) []Response {
 	e.mu.RUnlock()
 
 	for _, cfg := range configs {
+		if cfg.Auth != nil && !e.checkAuth(cfg.Auth, req) {
+			e.logger.Warn("Auth failed for config '%s' from IP %s, skipping", cfg.Name, req.IP)
+			continue
+		}
 		resp := e.processConfig(cfg, req)
 		if len(resp) > 0 {
 			return resp // first match stops
@@ -177,6 +215,20 @@ func (e *Engine) Process(req *RequestData) []Response {
 
 // ProcessTargeted handles a webhook request for a specific config file (by filename).
 func (e *Engine) ProcessTargeted(cfg *config.RuleConfig, req *RequestData) []Response {
+	// Auth check first: targeted requests must receive an explicit 401.
+	if cfg.Auth != nil && !e.checkAuth(cfg.Auth, req) {
+		log := e.logger
+		if ruleLog := e.getRuleLogger(cfg); ruleLog != nil {
+			log = ruleLog
+		}
+		log.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
+		return []Response{{
+			Code:    401,
+			Message: "Authentication failed",
+			Config:  cfg.Name,
+		}}
+	}
+
 	resp := e.processConfig(cfg, req)
 	if len(resp) > 0 {
 		return resp
@@ -195,18 +247,6 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 	log := e.logger
 	if ruleLog := e.getRuleLogger(cfg); ruleLog != nil {
 		log = ruleLog
-	}
-
-	// Step 1: Auth check (AND relationship)
-	if cfg.Auth != nil {
-		if !e.checkAuth(cfg.Auth, req) {
-			log.Warn("Auth failed for config '%s' from IP %s", cfg.Name, req.IP)
-			return []Response{{
-				Code:    401,
-				Message: "Authentication failed",
-				Config:  cfg.Name,
-			}}
-		}
 	}
 
 	// Step 1.5: Check file-level filters (AND with rule-level, short-circuit)
@@ -236,11 +276,13 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 			continue
 		}
 
-		// Step 3: Check execution policy
+		// Step 3: Atomically check execution policy and mark the task running.
+		// Check-and-set happens under a single lock so concurrent requests
+		// cannot both pass the policy check.
 		taskKey := cfg.Name + "/" + rule.Name
 		policy := e.resolvePolicy(cfg.Execution, rule.Execution)
 
-		if blocked := e.checkPolicy(taskKey, policy); blocked != nil {
+		if blocked := e.tryAcquire(taskKey, policy); blocked != nil {
 			blocked.Config = cfg.Name
 			blocked.Rule = rule.Name
 			log.Info("Task '%s' blocked: %s", taskKey, blocked.Message)
@@ -249,7 +291,6 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 
 		// Step 4: Execute actions
 		log.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
-		e.markRunning(taskKey)
 		actionCount := e.executeActions(taskKey, rule.Actions, req, log)
 		e.markDone(taskKey)
 
@@ -302,7 +343,7 @@ func (e *Engine) checkToken(token *config.TokenConfig, req *RequestData) bool {
 	default:
 		return false
 	}
-	return actual == token.Value
+	return subtle.ConstantTimeCompare([]byte(actual), []byte(token.Value)) == 1
 }
 
 // checkHMAC validates the HMAC signature from the request header.
@@ -379,8 +420,9 @@ func (e *Engine) checkIPWhitelist(whitelist []string, ip string) bool {
 				return true
 			}
 		} else {
-			// Exact IP match
-			if host == entry {
+			// Exact IP match (use net.IP.Equal to handle representations
+			// like IPv4-mapped IPv6 addresses)
+			if entryIP := net.ParseIP(entry); entryIP != nil && entryIP.Equal(parsedIP) {
 				return true
 			}
 		}
@@ -422,8 +464,11 @@ func (e *Engine) matchFilter(f config.Filter, req *RequestData) bool {
 	case "contains":
 		return strings.Contains(actual, f.Value)
 	case "regex":
-		matched, err := regexp.MatchString(f.Value, actual)
-		return err == nil && matched
+		re, err := compileCached(f.Value)
+		if err != nil {
+			return false
+		}
+		return re.MatchString(actual)
 	default:
 		return false
 	}
@@ -487,10 +532,8 @@ func parseJSONPath(path string) []pathPart {
 	var parts []pathPart
 	segments := strings.Split(path, ".")
 
-	arrayRe := regexp.MustCompile(`^(\w+)\[(\d+)\]$`)
-
 	for _, seg := range segments {
-		if matches := arrayRe.FindStringSubmatch(seg); matches != nil {
+		if matches := arrayIndexRe.FindStringSubmatch(seg); matches != nil {
 			idx, _ := strconv.Atoi(matches[2])
 			parts = append(parts, pathPart{key: matches[1], index: idx})
 		} else {
@@ -513,26 +556,28 @@ func (e *Engine) resolvePolicy(fileLevel, ruleLevel *config.ExecutionConfig) con
 	return config.ExecutionConfig{Policy: "block"}
 }
 
-// checkPolicy checks if execution is allowed under the given policy.
-// Returns nil if allowed, or a Response if blocked.
-func (e *Engine) checkPolicy(taskKey string, policy config.ExecutionConfig) *Response {
-	e.mu.RLock()
-	running := e.running[taskKey]
-	lastRun := e.lastRun[taskKey]
-	e.mu.RUnlock()
+// tryAcquire atomically checks the execution policy and, when allowed,
+// marks the task as running. Returns nil if execution may proceed, or a
+// Response describing why the task is blocked. Holding a single lock across
+// check-and-set prevents concurrent requests from racing past the policy.
+func (e *Engine) tryAcquire(taskKey string, policy config.ExecutionConfig) *Response {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	switch policy.Policy {
 	case "always":
-		return nil
+		// never blocked
 	case "block":
-		if running {
+		if e.running[taskKey] {
 			return &Response{
 				Code:    409,
 				Message: fmt.Sprintf("Task '%s' is running, please try again later", taskKey),
 			}
 		}
 	case "cooldown":
-		if running {
+		// Block when the last start is within the cooldown window, whether
+		// the previous run is still active or already finished.
+		if lastRun, ok := e.lastRun[taskKey]; ok {
 			elapsed := time.Since(lastRun)
 			remaining := time.Duration(policy.CooldownSeconds)*time.Second - elapsed
 			if remaining > 0 {
@@ -544,15 +589,9 @@ func (e *Engine) checkPolicy(taskKey string, policy config.ExecutionConfig) *Res
 		}
 	}
 
-	return nil
-}
-
-// markRunning marks a task as running.
-func (e *Engine) markRunning(taskKey string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.running[taskKey] = true
 	e.lastRun[taskKey] = time.Now()
+	return nil
 }
 
 // markDone marks a task as no longer running.
@@ -696,15 +735,13 @@ func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs 
 	result := tmpl
 
 	// 0. Resolve {{.raw_body}} template
-	rawBodyRe := regexp.MustCompile(`\{\{\s*\.raw_body\s*\}\}`)
-	result = rawBodyRe.ReplaceAllStringFunc(result, func(_ string) string {
+	result = tmplRawBodyRe.ReplaceAllStringFunc(result, func(_ string) string {
 		return req.BodyRaw
 	})
 
 	// 1. Resolve {{.body.xxx}} templates
-	bodyRe := regexp.MustCompile(`\{\{\s*\.body\.([^}\s]+)\s*\}\}`)
-	result = bodyRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := bodyRe.FindStringSubmatch(match)
+	result = tmplBodyRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplBodyRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}
@@ -716,9 +753,8 @@ func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs 
 	})
 
 	// 2. Resolve {{.header.xxx}} templates
-	headerRe := regexp.MustCompile(`\{\{\s*\.header\.([^}\s]+)\s*\}\}`)
-	result = headerRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := headerRe.FindStringSubmatch(match)
+	result = tmplHeaderRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplHeaderRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}
@@ -731,9 +767,8 @@ func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs 
 	})
 
 	// 3. Resolve {{.query.xxx}} templates
-	queryRe := regexp.MustCompile(`\{\{\s*\.query\.([^}\s]+)\s*\}\}`)
-	result = queryRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := queryRe.FindStringSubmatch(match)
+	result = tmplQueryRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplQueryRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}
@@ -744,14 +779,15 @@ func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs 
 		return val
 	})
 
-	// 4. Append pass_args as trailing arguments
+	// 4. Append pass_args as trailing arguments (shell-quoted so values with
+	// spaces or metacharacters cannot break or inject into the command)
 	if len(passArgs) > 0 {
 		for _, pa := range passArgs {
 			val := e.extractPassArgValue(&pa, req)
 			if result != "" {
-				result += " " + val
+				result += " " + executor.QuoteShellArg(val)
 			} else {
-				result = val
+				result = executor.QuoteShellArg(val)
 			}
 		}
 	}
@@ -833,12 +869,20 @@ func ParseRequest(r *http.Request) (*RequestData, error) {
 		data.Query[key] = r.URL.Query().Get(key)
 	}
 
-	// Extract client IP (supports proxy headers)
+	// Extract client IP. Proxy headers are only honored when the direct
+	// peer is a trusted proxy (loopback or private network); otherwise a
+	// remote client could forge X-Forwarded-For to bypass ip_whitelist.
 	data.IP = r.RemoteAddr
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		data.IP = strings.Split(xff, ",")[0]
-	} else if xri := r.Header.Get("X-Real-Ip"); xri != "" {
-		data.IP = xri
+	directHost := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		directHost = h
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" && isTrustedProxy(directHost) {
+		// Rightmost entry is appended by the closest trusted proxy
+		parts := strings.Split(xff, ",")
+		data.IP = strings.TrimSpace(parts[len(parts)-1])
+	} else if xri := r.Header.Get("X-Real-Ip"); xri != "" && isTrustedProxy(directHost) {
+		data.IP = strings.TrimSpace(xri)
 	}
 
 	// Read raw body bytes (needed for HMAC signature verification)
@@ -870,6 +914,24 @@ func ParseRequest(r *http.Request) (*RequestData, error) {
 	}
 
 	return data, nil
+}
+
+// isTrustedProxy reports whether the direct peer address may be trusted to
+// supply proxy headers: loopback or RFC1918 private networks.
+func isTrustedProxy(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+	for _, cidr := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"} {
+		if _, block, err := net.ParseCIDR(cidr); err == nil && block.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // generateRequestID creates a unique request identifier: timestamp-8hexchars.

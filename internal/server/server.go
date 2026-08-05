@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/config"
@@ -17,6 +15,10 @@ import (
 	"github.com/bluvenr/hookrun/internal/logger"
 	"github.com/bluvenr/hookrun/internal/version"
 )
+
+// maxBodyHardLimitMB caps request bodies even when max_body_size_mb is 0
+// (unlimited) to protect against memory exhaustion attacks.
+const maxBodyHardLimitMB = 512
 
 // Server wraps the HTTP server and all dependencies.
 type Server struct {
@@ -41,26 +43,6 @@ func New(configMgr *config.Manager, eng *engine.Engine, log *logger.Logger) *Ser
 // SetRelayClient sets the relay client for status queries.
 func (s *Server) SetRelayClient(client *engine.RelayClient) {
 	s.relayClient = client
-}
-
-// Start begins listening for HTTP requests and blocks until a shutdown signal is received.
-func (s *Server) Start() error {
-	if err := s.ListenAndServe(); err != nil {
-		return err
-	}
-
-	// Listen for shutdown signals
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	// Wait for shutdown signal or server error
-	select {
-	case err := <-s.errCh:
-		return fmt.Errorf("server error: %w", err)
-	case sig := <-stop:
-		s.logger.Info("Received signal %v, shutting down...", sig)
-		return s.Shutdown()
-	}
 }
 
 // ListenAndServe sets up routes and starts the HTTP server in a background goroutine.
@@ -180,12 +162,13 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Webhook request from %s (target: %s)", r.RemoteAddr, targetOrAll(target))
 
-	// Apply request body size limit
-	cfg2 := s.configMgr.Global()
-	if cfg2.Server.MaxBodySizeMB != nil && *cfg2.Server.MaxBodySizeMB > 0 {
-		maxBytes := int64(*cfg2.Server.MaxBodySizeMB) * 1024 * 1024
-		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+	// Apply request body size limit (with a hard cap even when "unlimited")
+	limitMB := maxBodyHardLimitMB
+	if cfg.Server.MaxBodySizeMB != nil && *cfg.Server.MaxBodySizeMB > 0 && *cfg.Server.MaxBodySizeMB < limitMB {
+		limitMB = *cfg.Server.MaxBodySizeMB
 	}
+	maxBytes := int64(limitMB) * 1024 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 
 	// Parse request
 	reqData, err := engine.ParseRequest(r)
@@ -195,7 +178,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			s.logger.Warn("Request body too large from %s (limit: %d bytes)", r.RemoteAddr, maxBytesErr.Limit)
 			writeJSON(w, http.StatusRequestEntityTooLarge, engine.Response{
 				Code:    413,
-				Message: fmt.Sprintf("Request body too large (limit: %d MB)", *cfg2.Server.MaxBodySizeMB),
+				Message: fmt.Sprintf("Request body too large (limit: %d MB)", limitMB),
 			})
 			return
 		}
@@ -327,11 +310,21 @@ func (s *Server) buildRelayInfo() map[string]interface{} {
 }
 
 // handleReload triggers a hot-reload of all configs.
+// Restricted to localhost: the endpoint has no authentication of its own.
 func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, engine.Response{
 			Code:    405,
 			Message: "Method not allowed",
+		})
+		return
+	}
+
+	if !isLoopbackAddr(r.RemoteAddr) {
+		s.logger.Warn("Reload rejected: request from non-loopback address %s", r.RemoteAddr)
+		writeJSON(w, http.StatusForbidden, engine.Response{
+			Code:    403,
+			Message: "Reload is only allowed from localhost",
 		})
 		return
 	}
@@ -356,6 +349,16 @@ func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"rules":  s.configMgr.RuleCount(),
 	})
+}
+
+// isLoopbackAddr reports whether the remote address is a loopback address.
+func isLoopbackAddr(remoteAddr string) bool {
+	host := remoteAddr
+	if h, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // writeJSON writes a JSON response.

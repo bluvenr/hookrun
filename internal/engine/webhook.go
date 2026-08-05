@@ -136,9 +136,8 @@ func (e *Engine) resolveWebhookTemplates(tmpl string, req *RequestData) string {
 	result := tmpl
 
 	// body
-	bodyRe := regexp.MustCompile(`\{\{\s*\.body\.([^}\s]+)\s*\}\}`)
-	result = bodyRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := bodyRe.FindStringSubmatch(match)
+	result = tmplBodyRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplBodyRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}
@@ -146,9 +145,8 @@ func (e *Engine) resolveWebhookTemplates(tmpl string, req *RequestData) string {
 	})
 
 	// header
-	headerRe := regexp.MustCompile(`\{\{\s*\.header\.([^}\s]+)\s*\}\}`)
-	result = headerRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := headerRe.FindStringSubmatch(match)
+	result = tmplHeaderRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplHeaderRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}
@@ -156,9 +154,8 @@ func (e *Engine) resolveWebhookTemplates(tmpl string, req *RequestData) string {
 	})
 
 	// query
-	queryRe := regexp.MustCompile(`\{\{\s*\.query\.([^}\s]+)\s*\}\}`)
-	result = queryRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := queryRe.FindStringSubmatch(match)
+	result = tmplQueryRe.ReplaceAllStringFunc(result, func(match string) string {
+		sub := tmplQueryRe.FindStringSubmatch(match)
 		if len(sub) < 2 {
 			return match
 		}

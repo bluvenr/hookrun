@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -302,6 +303,15 @@ func (r *RuleConfig) Validate() error {
 		return fmt.Errorf("rule config '%s': at least one rule is required", r.Name)
 	}
 
+	// Reject duplicate rule names (rule loggers/policies are keyed by name)
+	seenRules := make(map[string]bool, len(r.Rules))
+	for _, rule := range r.Rules {
+		if rule.Name != "" && seenRules[rule.Name] {
+			return fmt.Errorf("config '%s': duplicate rule name '%s'", r.Name, rule.Name)
+		}
+		seenRules[rule.Name] = true
+	}
+
 	for i, rule := range r.Rules {
 		if err := rule.Validate(r.Name, i); err != nil {
 			return err
@@ -408,6 +418,11 @@ func (f *Filter) Validate(ruleName string, index int) error {
 	}
 	if f.Value == "" {
 		return fmt.Errorf("%s: 'value' is required", prefix)
+	}
+	if f.Operator == "regex" {
+		if _, err := regexp.Compile(f.Value); err != nil {
+			return fmt.Errorf("%s: invalid regex %q: %v", prefix, f.Value, err)
+		}
 	}
 	return nil
 }

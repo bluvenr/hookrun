@@ -106,13 +106,41 @@ func shellCommand() (string, string) {
 func buildQuotedArgs(args []string) string {
 	quoted := make([]string, len(args))
 	for i, arg := range args {
-		if runtime.GOOS == "windows" {
-			// Windows cmd.exe uses double quotes
-			quoted[i] = `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
-		} else {
-			// Unix sh uses single quotes
-			quoted[i] = "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
-		}
+		quoted[i] = quoteShellArg(arg)
 	}
 	return strings.Join(quoted, " ")
+}
+
+// QuoteShellArg quotes a single argument for safe inclusion in a shell
+// command line. Values consisting only of safe characters are returned
+// unchanged so ordinary values stay readable.
+func QuoteShellArg(arg string) string {
+	if arg != "" && isShellSafe(arg) {
+		return arg
+	}
+	return quoteShellArg(arg)
+}
+
+// isShellSafe reports whether the argument contains only characters that
+// need no quoting in sh or cmd.exe.
+func isShellSafe(arg string) bool {
+	for _, r := range arg {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '_' || r == '-' || r == '.' || r == '/' || r == '=' || r == ':' || r == ',':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// quoteShellArg always wraps the argument in quotes with proper escaping.
+func quoteShellArg(arg string) string {
+	if runtime.GOOS == "windows" {
+		// cmd.exe treats "" as a literal quote inside a quoted string
+		return `"` + strings.ReplaceAll(arg, `"`, `""`) + `"`
+	}
+	// Unix sh uses single quotes
+	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }

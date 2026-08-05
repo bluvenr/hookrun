@@ -1,9 +1,11 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -69,6 +71,12 @@ func (s *Server) handleRelayRegister(w http.ResponseWriter, r *http.Request) {
 		if req.URL == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"error": "'url' is required",
+			})
+			return
+		}
+		if err := validateRelayURL(req.URL); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": err.Error(),
 			})
 			return
 		}
@@ -167,12 +175,12 @@ func (s *Server) handleRelayTargets(w http.ResponseWriter, r *http.Request) {
 			URL:      e.URL,
 			Tags:     e.Tags,
 			TTL:      e.TTL,
-			LastSeen: e.LastSeen.Format("2006-01-02T15:04:05Z"),
+			LastSeen: e.LastSeen.UTC().Format("2006-01-02T15:04:05Z"),
 		}
 		if e.TTL > 0 {
 			tr.ExpiresAt = e.LastSeen.Add(
 				durationSeconds(e.TTL),
-			).Format("2006-01-02T15:04:05Z")
+			).UTC().Format("2006-01-02T15:04:05Z")
 		}
 		targets = append(targets, tr)
 	}
@@ -198,12 +206,27 @@ func (s *Server) checkRegistryAuth(r *http.Request) bool {
 		return false
 	}
 
-	// Support "Bearer <token>" format
+	// Support "Bearer <token>" format (constant-time comparison)
 	if strings.HasPrefix(authHeader, "Bearer ") {
-		return strings.TrimPrefix(authHeader, "Bearer ") == expectedToken
+		authHeader = strings.TrimPrefix(authHeader, "Bearer ")
 	}
 
-	return authHeader == expectedToken
+	return subtle.ConstantTimeCompare([]byte(authHeader), []byte(expectedToken)) == 1
+}
+
+// validateRelayURL ensures a registered relay URL is a well-formed http(s) URL.
+func validateRelayURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return errors.New("'url' is not a valid URL: " + err.Error())
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("'url' must use http or https scheme")
+	}
+	if u.Host == "" {
+		return errors.New("'url' must contain a host")
+	}
+	return nil
 }
 
 // durationSeconds converts seconds to time.Duration.

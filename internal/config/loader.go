@@ -26,23 +26,25 @@ func NewManager(globalPath string) *Manager {
 }
 
 // Load loads the global config and all rule configs.
+// The in-memory state is only replaced after everything parsed
+// successfully, so a failed reload keeps global and rules consistent.
 func (m *Manager) Load() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	// Load global config
 	g, err := loadGlobalConfig(m.globalPath)
 	if err != nil {
 		return fmt.Errorf("load global config: %w", err)
 	}
-	m.global = g
 
 	// Load rule configs
 	rules, err := loadRuleConfigs(g.ConfigDir)
 	if err != nil {
 		return fmt.Errorf("load rule configs: %w", err)
 	}
+
+	m.mu.Lock()
+	m.global = g
 	m.rules = rules
+	m.mu.Unlock()
 
 	return nil
 }
@@ -81,6 +83,22 @@ func (m *Manager) ValidateAll() []error {
 	for _, r := range m.rules {
 		if err := r.Validate(); err != nil {
 			errs = append(errs, err)
+		}
+	}
+
+	// Check for duplicate config names and routing file names
+	seenNames := make(map[string]string)  // config name -> source file
+	seenFiles := make(map[string]string)  // file name (routing key) -> source file
+	for _, r := range m.rules {
+		if prev, dup := seenNames[r.Name]; dup {
+			errs = append(errs, fmt.Errorf("duplicate config name '%s' in '%s' and '%s'", r.Name, prev, r.FilePath))
+		} else {
+			seenNames[r.Name] = r.FilePath
+		}
+		if prev, dup := seenFiles[r.FileName]; dup {
+			errs = append(errs, fmt.Errorf("duplicate routing name '%s' (from '%s' and '%s'): /webhook/%s is ambiguous", r.FileName, prev, r.FilePath, r.FileName))
+		} else {
+			seenFiles[r.FileName] = r.FilePath
 		}
 	}
 
