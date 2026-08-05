@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -97,12 +99,55 @@ jobs:
       - name: List artifacts
         run: ls -lh dist/
 
+      - name: Generate changelog from commits
+        run: |
+          set -euo pipefail
+          CUR_TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CUR_TAG}^" 2>/dev/null || echo "")
+          RANGE="${PREV_TAG:+${PREV_TAG}..}${CUR_TAG}"
+          NOTES_FILE="NOTES.md"
+          : > "$NOTES_FILE"
+
+          emit_section() {
+            local title="$1"
+            local regex="$2"
+            local invert="${3:-}"
+            local lines
+            if [ "$invert" = "-v" ]; then
+              lines=$(git log "$RANGE" --pretty=format:'%s (%h)' | LC_ALL=C grep -vE "$regex" || true)
+            else
+              lines=$(git log "$RANGE" --pretty=format:'%s (%h)' | LC_ALL=C grep -E "$regex" || true)
+            fi
+            [ -z "$lines" ] && return
+            {
+              echo "## $title"
+              echo ""
+              while IFS= read -r line; do
+                echo "* $line"
+              done <<< "$lines"
+              echo ""
+            } >> "$NOTES_FILE"
+          }
+
+          emit_section "🚀 New Features"  '^(feat|feature)(\(.+\))?!?:'
+          emit_section "🐛 Bug Fixes"     '^fix(\(.+\))?!?:'
+          emit_section "📝 Documentation" '^docs(\(.+\))?!?:'
+          emit_section "🔧 Maintenance"   '^chore(\(.+\))?!?:'
+          emit_section "🏗️ CI/CD"         '^ci(\(.+\))?!?:'
+          emit_section "🔨 Other Changes" '^(feat|feature|fix|docs|chore|ci)(\(.+\))?!?:' -v
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${CUR_TAG}" >> "$NOTES_FILE"
+          else
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${CUR_TAG}" >> "$NOTES_FILE"
+          fi
+
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           name: HookRun ${{ github.ref_name }}
-          generate_release_notes: true
+          body_path: NOTES.md
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
