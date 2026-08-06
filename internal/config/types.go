@@ -20,6 +20,7 @@ type ServerConfig struct {
 	Route              string `yaml:"route"`
 	AllowAll           *bool  `yaml:"allow_all,omitempty"`            // allow /webhook to iterate all configs (default: false)
 	MaxBodySizeMB      *int   `yaml:"max_body_size_mb,omitempty"`     // max request body in MB, 0 = unlimited (default: 10)
+	MaxAsyncTasks      *int   `yaml:"max_async_tasks,omitempty"`      // max concurrent background async tasks (default: 32)
 	RelayRegistryToken string `yaml:"relay_registry_token,omitempty"` // registry API auth token (empty = registry disabled)
 	MaxRelayTTL        int    `yaml:"max_relay_ttl,omitempty"`        // max TTL cap in seconds, 0 = unlimited
 	MaxRegistryEntries int    `yaml:"max_registry_entries,omitempty"` // registry pool capacity (default: 100)
@@ -41,6 +42,7 @@ type RuleLogConfig struct {
 // RuleConfig represents a single hooks/*.yaml file structure.
 type RuleConfig struct {
 	Name        string             `yaml:"name"`
+	Async       bool               `yaml:"async,omitempty"` // true = return 202 and execute actions in background
 	Auth        *AuthConfig        `yaml:"auth,omitempty"`
 	Execution   *ExecutionConfig   `yaml:"execution,omitempty"`
 	Filters     []Filter           `yaml:"filters,omitempty"`     // file-level global filters (AND with rule-level)
@@ -206,6 +208,9 @@ func (g *GlobalConfig) Validate() error {
 	if *g.Server.MaxBodySizeMB < 0 {
 		return fmt.Errorf("server.max_body_size_mb must be >= 0, got %d", *g.Server.MaxBodySizeMB)
 	}
+	if g.Server.MaxAsyncTasks != nil && *g.Server.MaxAsyncTasks < 0 {
+		return fmt.Errorf("server.max_async_tasks must be >= 0, got %d", *g.Server.MaxAsyncTasks)
+	}
 	if g.Server.MaxRegistryEntries < 0 {
 		return fmt.Errorf("server.max_registry_entries must be >= 0, got %d", g.Server.MaxRegistryEntries)
 	}
@@ -246,6 +251,15 @@ func (s *ServerConfig) IsAllowAll() bool {
 		return false
 	}
 	return *s.AllowAll
+}
+
+// MaxAsyncTaskLimit returns the effective max concurrent async task count
+// (nil or non-positive values fall back to the default of 32).
+func (s *ServerConfig) MaxAsyncTaskLimit() int {
+	if s.MaxAsyncTasks == nil || *s.MaxAsyncTasks <= 0 {
+		return 32
+	}
+	return *s.MaxAsyncTasks
 }
 
 // IsRelayRegistryEnabled returns true when the relay registry is activated.

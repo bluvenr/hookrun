@@ -17,6 +17,7 @@ HookRun 使用两级 YAML 配置：
 | `server.route` | string | `/webhook` | Webhook 基础路由路径 |
 | `server.allow_all` | bool | `false` | 是否允许基础路由 `/webhook` 遍历所有配置文件 |
 | `server.max_body_size_mb` | int | `10` | 请求体大小上限 MB。`0` = 不限制 |
+| `server.max_async_tasks` | int | `32` | 后台异步任务最大并发数，超出时新请求返回 HTTP 429 |
 | `server.relay_registry_token` | string | `""` | 注册池 API 鉴权 token。非空时启用注册池 |
 | `server.max_relay_ttl` | int | `0`（不限） | 注册目标的最大 TTL 上限（秒） |
 | `server.max_registry_entries` | int | `100` | 注册池最大容量 |
@@ -169,6 +170,7 @@ log:
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | 是 | 规则集名称，用于日志和响应 |
+| `async` | bool | 否 | `true` = 立即返回 HTTP 202，后台执行 actions（默认 `false`） |
 | `auth` | object | 否 | 认证设置（AND 关系） |
 | `execution` | object | 否 | 文件级执行策略 |
 | `filters` | array | 否 | 文件级全局过滤条件（与规则级 AND 组合） |
@@ -282,6 +284,30 @@ rules:
 优先级：**规则级 > 文件级 > 默认值 (block)**
 
 ---
+
+### 2.2.5 `async` — 异步执行
+
+配置 `async: true` 后，匹配成功的请求立即返回 HTTP 202，actions 在后台执行：
+
+```yaml
+name: "deploy"
+async: true                     # 返回 202，后台执行
+execution:
+  policy: "block"
+rules:
+  - name: "deploy-main"
+    actions:
+      - type: "command"
+        cmd: "deploy.sh"
+```
+
+行为说明：
+
+- 202 响应携带 `request_id`，用于关联日志与执行记录
+- 执行策略（`block` / `cooldown`）依然生效 — 策略拒绝（409/429）同步返回
+- 背压保护：后台运行任务数达到 `server.max_async_tasks` 时，新请求返回 429
+- 最近的异步执行记录可通过 `GET /api/executions` 查询（见使用文档）
+- 关闭时在途异步任务有 30 秒宽限期，超时后强制退出
 
 ### 2.3 `filters` — 文件级过滤条件
 

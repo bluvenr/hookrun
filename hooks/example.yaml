@@ -20,6 +20,10 @@ execution:
   policy: "block"                # "block" | "always" | "cooldown"
   # cooldown_seconds: 300        # only for "cooldown" policy
 
+# Async execution (optional): return HTTP 202 immediately and run actions
+# in the background. Results are logged and queryable via GET /api/executions.
+# async: true
+
 # Rule-level independent log file (dual-write: global + this file)
 # log:
 #   path: "./logs/github-auto-deploy.log"

@@ -303,6 +303,37 @@ GET /health
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream+downstream", "upstream_targets": 3, "downstream_connected": true}}
 ```
 
+### 异步执行记录
+
+```
+GET /api/executions?limit=20
+```
+
+列出最近的异步执行记录（最新在前），保存在内存中（最近 100 条）。无需认证，与 `/health` 一致。`limit` 默认 20，上限 100。
+
+```bash
+curl http://localhost:9000/api/executions?limit=5
+```
+
+```json
+{
+  "executions": [
+    {
+      "request_id": "1720000000000-a1b2c3d4",
+      "config": "deploy",
+      "rule": "deploy-main",
+      "status": "succeeded",
+      "started_at": "2026-08-05T10:00:00Z",
+      "finished_at": "2026-08-05T10:00:12Z",
+      "duration": "12.05s",
+      "exit_code": 0
+    }
+  ]
+}
+```
+
+`status` 取值为 `running`、`succeeded` 或 `failed`。失败记录携带 `exit_code`（无退出码时为 `-1`）和 `error` 信息。
+
 ### Relay API
 
 #### `GET /api/relay/status` — 综合 Relay 状态（始终可用，无需认证）
@@ -431,6 +462,22 @@ curl -H "Authorization: Bearer your-registry-secret" \
   "message": "Task 'github-auto-deploy/push-to-main' is in cooldown, retry in 120 seconds"
 }
 ```
+
+### 异步接受（202）
+
+当匹配的配置文件设置了 `async: true` 时，请求立即被接受，actions 在后台执行：
+
+```json
+{
+  "code": 202,
+  "message": "Accepted, executing asynchronously",
+  "config": "deploy",
+  "rule": "deploy-main",
+  "request_id": "1720000000000-a1b2c3d4"
+}
+```
+
+使用 `request_id` 关联日志条目和执行记录。
 
 ### 基础路由已禁用（400）
 

@@ -87,8 +87,8 @@ func (m *Manager) ValidateAll() []error {
 	}
 
 	// Check for duplicate config names and routing file names
-	seenNames := make(map[string]string)  // config name -> source file
-	seenFiles := make(map[string]string)  // file name (routing key) -> source file
+	seenNames := make(map[string]string) // config name -> source file
+	seenFiles := make(map[string]string) // file name (routing key) -> source file
 	for _, r := range m.rules {
 		if prev, dup := seenNames[r.Name]; dup {
 			errs = append(errs, fmt.Errorf("duplicate config name '%s' in '%s' and '%s'", r.Name, prev, r.FilePath))

@@ -183,7 +183,7 @@ func TestExecuteActions_RetrySuccess(t *testing.T) {
 			},
 		},
 	}
-	completed := e.executeActions("test/retry-success", actions, req, log)
+	completed, _ := e.executeActions("test/retry-success", actions, req, log)
 	if completed != 1 {
 		t.Errorf("expected 1 completed, got %d", completed)
 	}
@@ -209,7 +209,7 @@ func TestExecuteActions_RetryExhausted(t *testing.T) {
 			},
 		},
 	}
-	completed := e.executeActions("test/retry-exhausted", actions, req, log)
+	completed, _ := e.executeActions("test/retry-exhausted", actions, req, log)
 	if completed != 0 {
 		t.Errorf("expected 0 completed, got %d", completed)
 	}
@@ -240,7 +240,7 @@ func TestExecuteActions_RetryExhausted_ContinueOnError(t *testing.T) {
 			Cmd:  "echo ok",
 		},
 	}
-	completed := e.executeActions("test/retry-continue", actions, req, log)
+	completed, _ := e.executeActions("test/retry-continue", actions, req, log)
 	// First action fails (0), second succeeds (1)
 	if completed != 1 {
 		t.Errorf("expected 1 completed, got %d", completed)
@@ -263,7 +263,7 @@ func TestExecuteActions_NoRetry_Unchanged(t *testing.T) {
 			Cmd:  "exit 1",
 		},
 	}
-	completed := e.executeActions("test/no-retry", actions, req, log)
+	completed, _ := e.executeActions("test/no-retry", actions, req, log)
 	if completed != 0 {
 		t.Errorf("expected 0 completed, got %d", completed)
 	}
@@ -328,7 +328,7 @@ func TestExecuteActions_RetryMultipleActions(t *testing.T) {
 			},
 		},
 	}
-	completed := e.executeActions("test/retry-multi", actions, req, log)
+	completed, _ := e.executeActions("test/retry-multi", actions, req, log)
 	// First succeeds (1), second fails after retries (0)
 	if completed != 1 {
 		t.Errorf("expected 1 completed, got %d", completed)

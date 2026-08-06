@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/config"
+	"github.com/bluvenr/hookrun/internal/execstore"
 	"github.com/bluvenr/hookrun/internal/executor"
 	"github.com/bluvenr/hookrun/internal/logger"
 )
@@ -53,11 +54,12 @@ func compileCached(pattern string) (*regexp.Regexp, error) {
 
 // Response is the standard JSON response structure.
 type Response struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Config  string `json:"config,omitempty"`
-	Rule    string `json:"rule,omitempty"`
-	Actions int    `json:"actions,omitempty"`
+	Code      int    `json:"code"`
+	Message   string `json:"message"`
+	Config    string `json:"config,omitempty"`
+	Rule      string `json:"rule,omitempty"`
+	Actions   int    `json:"actions,omitempty"`
+	RequestID string `json:"request_id,omitempty"` // set for 202 async responses
 }
 
 // RequestData holds parsed request information.
@@ -92,16 +94,24 @@ type Engine struct {
 	// Relay target registry for dynamic discovery (nil when not enabled)
 	registry     *TargetRegistry
 	registryStop chan struct{}
+	// Async execution control
+	asyncSem  chan struct{}    // concurrency semaphore for background tasks
+	asyncWG   sync.WaitGroup   // tracks in-flight background tasks
+	execStore *execstore.Store // execution records for /api/executions
 	// Guard against double-stop (channel close panic)
 	stoppedMu sync.Mutex
 	stopped   bool
 }
 
 // New creates a new Engine instance.
-func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, logRetention int, logMaxSizeMB int) *Engine {
+func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, logRetention int, logMaxSizeMB int, maxAsyncTasks int) *Engine {
 	dedup := newDedupCache()
 	stop := make(chan struct{})
 	dedup.startCleanupLoop(60*time.Second, stop)
+
+	if maxAsyncTasks <= 0 {
+		maxAsyncTasks = 32
+	}
 
 	return &Engine{
 		configs:      configs,
@@ -114,6 +124,29 @@ func New(configs []*config.RuleConfig, log logger.LogWriter, logMode string, log
 		lastRun:      make(map[string]time.Time),
 		dedup:        dedup,
 		dedupStop:    stop,
+		asyncSem:     make(chan struct{}, maxAsyncTasks),
+		execStore:    execstore.NewStore(execstore.DefaultCapacity),
+	}
+}
+
+// ExecStore returns the async execution record store.
+func (e *Engine) ExecStore() *execstore.Store {
+	return e.execStore
+}
+
+// WaitForAsync blocks until all background async tasks finish or the timeout
+// elapses, whichever comes first. Used by graceful shutdown so in-flight
+// tasks get a grace period before the process exits.
+func (e *Engine) WaitForAsync(timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		e.asyncWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		e.logger.Warn("Shutdown: async tasks still running after %v, forcing exit", timeout)
 	}
 }
 
@@ -289,9 +322,13 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 			return []Response{*blocked}
 		}
 
-		// Step 4: Execute actions
+		// Step 4: Execute actions (synchronously, or dispatch to background
+		// when the config opts into async mode)
+		if cfg.Async {
+			return e.dispatchAsync(cfg, rule, taskKey, req, log)
+		}
 		log.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
-		actionCount := e.executeActions(taskKey, rule.Actions, req, log)
+		actionCount, _ := e.executeActions(taskKey, rule.Actions, req, log)
 		e.markDone(taskKey)
 
 		return []Response{{
@@ -304,6 +341,69 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 	}
 
 	return nil // no matching rule in this config
+}
+
+// dispatchAsync accepts a matched rule for background execution and returns
+// 202 immediately. The policy check has already passed via tryAcquire, so the
+// task stays marked running until the background goroutine finishes.
+func (e *Engine) dispatchAsync(cfg *config.RuleConfig, rule config.Rule, taskKey string, req *RequestData, log logger.LogWriter) []Response {
+	// Backpressure: reject synchronously when the async task limit is reached
+	select {
+	case e.asyncSem <- struct{}{}:
+	default:
+		e.markDone(taskKey)
+		log.Warn("Async task limit reached, rejecting request for task '%s'", taskKey)
+		return []Response{{
+			Code:    429,
+			Message: "Async task limit reached, please try again later",
+			Config:  cfg.Name,
+			Rule:    rule.Name,
+		}}
+	}
+
+	e.execStore.Add(execstore.Record{
+		RequestID: req.RequestID,
+		Config:    cfg.Name,
+		Rule:      rule.Name,
+		Status:    execstore.StatusRunning,
+		StartedAt: time.Now(),
+	})
+
+	log.Info("Rule '%s' matched (async), request %s accepted", taskKey, req.RequestID)
+
+	e.asyncWG.Add(1)
+	go func() {
+		defer e.asyncWG.Done()
+		defer func() { <-e.asyncSem }()
+		defer e.markDone(taskKey)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("[async] Task '%s' panicked: %v", taskKey, r)
+				e.execStore.Complete(req.RequestID, execstore.StatusFailed, -1, fmt.Sprintf("panic: %v", r))
+			}
+		}()
+
+		completed, failed := e.executeActions(taskKey, rule.Actions, req, log)
+		if failed == nil {
+			log.Info("[async] Task '%s' completed (%d actions, request %s)", taskKey, completed, req.RequestID)
+			e.execStore.Complete(req.RequestID, execstore.StatusSucceeded, 0, "")
+		} else {
+			errMsg := ""
+			if failed.Error != nil {
+				errMsg = failed.Error.Error()
+			}
+			log.Error("[async] Task '%s' failed (request %s, exit=%d): %s", taskKey, req.RequestID, failed.ExitCode, errMsg)
+			e.execStore.Complete(req.RequestID, execstore.StatusFailed, failed.ExitCode, errMsg)
+		}
+	}()
+
+	return []Response{{
+		Code:      202,
+		Message:   "Accepted, executing asynchronously",
+		Config:    cfg.Name,
+		Rule:      rule.Name,
+		RequestID: req.RequestID,
+	}}
 }
 
 // checkAuth validates authentication (AND relationship between token, HMAC, and IP whitelist).
@@ -602,9 +702,11 @@ func (e *Engine) markDone(taskKey string) {
 }
 
 // executeActions runs all actions for a rule sequentially.
-// Returns the number of successfully completed actions.
-func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData, log logger.LogWriter) int {
+// Returns the number of successfully completed actions and the result of the
+// last failed action (nil when every action succeeded).
+func (e *Engine) executeActions(taskKey string, actions []config.Action, req *RequestData, log logger.LogWriter) (int, *executor.ActionResult) {
 	completed := 0
+	var lastFailed *executor.ActionResult
 
 	// Extract config/rule names from taskKey ("configName/ruleName")
 	parts := strings.SplitN(taskKey, "/", 2)
@@ -660,6 +762,7 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 			log.Info("[%s] Action %d/%d completed in %v", taskKey, i+1, len(actions), result.Duration)
 			completed++
 		} else {
+			lastFailed = result
 			if !action.ContinueOnError {
 				log.Warn("[%s] Stopping execution due to action failure (continue_on_error=false)", taskKey)
 				break
@@ -671,7 +774,7 @@ func (e *Engine) executeActions(taskKey string, actions []config.Action, req *Re
 		}
 	}
 
-	return completed
+	return completed, lastFailed
 }
 
 // executeSingleAction runs a single action and returns the result.

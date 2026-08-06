@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/config"
+	"github.com/bluvenr/hookrun/internal/execstore"
 	"github.com/bluvenr/hookrun/internal/logger"
 )
 
@@ -31,6 +33,8 @@ func newTestEngine(t *testing.T) *Engine {
 		lastRun:     make(map[string]time.Time),
 		dedup:       newDedupCache(),
 		dedupStop:   stop,
+		asyncSem:    make(chan struct{}, 32),
+		execStore:   execstore.NewStore(execstore.DefaultCapacity),
 	}
 }
 
@@ -524,6 +528,128 @@ func TestResolveActionTemplates_NoTemplates(t *testing.T) {
 	result := e.resolveActionTemplates("plain command", req, nil)
 	if result != "plain command" {
 		t.Errorf("expected unchanged, got '%s'", result)
+	}
+}
+
+// --- async execution ---
+
+func asyncTestConfig(cmd string) *config.RuleConfig {
+	return &config.RuleConfig{
+		Name:  "async-test",
+		Async: true,
+		Rules: []config.Rule{{
+			Name:    "r1",
+			Actions: []config.Action{{Type: "command", Cmd: cmd}},
+		}},
+	}
+}
+
+func TestProcessConfig_Async_Returns202AndSucceeds(t *testing.T) {
+	e := newTestEngine(t)
+	cfg := asyncTestConfig("echo async-ok")
+	req := &RequestData{Headers: map[string]string{}, Query: map[string]string{}, RequestID: "req-async-1"}
+
+	responses := e.processConfig(cfg, req)
+	if len(responses) != 1 || responses[0].Code != 202 {
+		t.Fatalf("expected 202 response, got %+v", responses)
+	}
+	if responses[0].RequestID != "req-async-1" {
+		t.Errorf("202 response should carry request_id, got %q", responses[0].RequestID)
+	}
+
+	// Wait for the background task, then verify the record
+	e.WaitForAsync(5 * time.Second)
+	list := e.execStore.List(10)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 execution record, got %d", len(list))
+	}
+	if list[0].Status != execstore.StatusSucceeded {
+		t.Errorf("expected succeeded, got %s (error: %s)", list[0].Status, list[0].Error)
+	}
+	// Task must be released after completion
+	if e.running["async-test/r1"] {
+		t.Error("task should no longer be marked running")
+	}
+}
+
+func TestProcessConfig_Async_FailureRecorded(t *testing.T) {
+	e := newTestEngine(t)
+	cfg := asyncTestConfig("exit 7")
+	req := &RequestData{Headers: map[string]string{}, Query: map[string]string{}, RequestID: "req-async-2"}
+
+	responses := e.processConfig(cfg, req)
+	if responses[0].Code != 202 {
+		t.Fatalf("expected 202, got %+v", responses)
+	}
+
+	e.WaitForAsync(5 * time.Second)
+	list := e.execStore.List(10)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 execution record, got %d", len(list))
+	}
+	if list[0].Status != execstore.StatusFailed {
+		t.Errorf("expected failed, got %s", list[0].Status)
+	}
+	if list[0].ExitCode != 7 {
+		t.Errorf("expected exit code 7, got %d", list[0].ExitCode)
+	}
+}
+
+func TestProcessConfig_Async_BlockPolicyStillApplies(t *testing.T) {
+	e := newTestEngine(t)
+	cfg := asyncTestConfig("")
+	slowCmd := "sleep 2"
+	if runtime.GOOS == "windows" {
+		slowCmd = "ping -n 3 127.0.0.1"
+	}
+	cfg.Rules[0].Actions[0].Cmd = slowCmd
+	cfg.Execution = &config.ExecutionConfig{Policy: "block"}
+
+	req1 := &RequestData{Headers: map[string]string{}, Query: map[string]string{}, RequestID: "req-b1"}
+	if resp := e.processConfig(cfg, req1); resp[0].Code != 202 {
+		t.Fatalf("first request should be accepted, got %+v", resp)
+	}
+
+	// While the background task is running, the block policy must reject
+	req2 := &RequestData{Headers: map[string]string{}, Query: map[string]string{}, RequestID: "req-b2"}
+	resp := e.processConfig(cfg, req2)
+	if resp[0].Code != 409 {
+		t.Errorf("second request should be blocked with 409, got %+v", resp)
+	}
+
+	e.WaitForAsync(10 * time.Second)
+}
+
+func TestProcessConfig_AsyncLimitReached(t *testing.T) {
+	e := newTestEngine(t)
+	e.asyncSem = make(chan struct{}, 1)
+	e.asyncSem <- struct{}{} // occupy the only slot
+
+	cfg := asyncTestConfig("echo never-runs")
+	req := &RequestData{Headers: map[string]string{}, Query: map[string]string{}, RequestID: "req-full"}
+
+	responses := e.processConfig(cfg, req)
+	if responses[0].Code != 429 {
+		t.Fatalf("expected 429 when async limit reached, got %+v", responses)
+	}
+	// Task must be released so future requests are not permanently blocked
+	if e.running["async-test/r1"] {
+		t.Error("rejected request must not leave the task marked running")
+	}
+}
+
+func TestWaitForAsync_NoTasks(t *testing.T) {
+	e := newTestEngine(t)
+	done := make(chan struct{})
+	go func() {
+		e.WaitForAsync(2 * time.Second)
+		close(done)
+	}()
+	select {
+	case <-done:
+		// returned immediately as expected
+	case <-time.After(3 * time.Second):
+		t.Error("WaitForAsync should return immediately with no tasks")
 	}
 }
 

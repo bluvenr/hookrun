@@ -86,6 +86,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **Flexible Auth** — Token (Header/Query) + HMAC Signature (GitHub/GitLab) + IP whitelist with AND relationship
 - **Multi-Condition Filters** — Match against Header / Query / Body with operators: `eq` `ne` `contains` `regex`
 - **Execution Policies** — Three modes: `block` (prevent concurrency), `always` (always execute), `cooldown` (rate limiting)
+- **Async Execution** — Per-file `async: true` returns HTTP 202 instantly and runs actions in the background, queryable via `/api/executions`
 - **Policy Inheritance** — File-level → Rule-level override
 - **File-Level Filters** — Global constraints applied to all rules, AND with rule-level filters
 - **Parameter Passing** — Template variables (`{{.body.ref}}`) and `pass_args` to inject request data into commands

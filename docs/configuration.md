@@ -17,6 +17,7 @@ HookRun uses two levels of YAML configuration:
 | `server.route` | string | `/webhook` | Base webhook endpoint path |
 | `server.allow_all` | bool | `false` | Allow base route (`/webhook`) to iterate all config files |
 | `server.max_body_size_mb` | int | `10` | Max request body size in MB. `0` = unlimited |
+| `server.max_async_tasks` | int | `32` | Max concurrent background async tasks. Excess requests get HTTP 429 |
 | `server.relay_registry_token` | string | `""` | Relay registry API auth token. Non-empty enables registry |
 | `server.max_relay_ttl` | int | `0` (unlimited) | Max TTL cap for registered targets (seconds) |
 | `server.max_registry_entries` | int | `100` | Max number of registered targets |
@@ -169,6 +170,7 @@ Each YAML file in `config_dir` defines a rule set. The **filename** (without `.y
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Rule set name, used in logs and responses |
+| `async` | bool | No | `true` = return HTTP 202 immediately and run actions in background (default `false`) |
 | `auth` | object | No | Authentication settings (AND relationship) |
 | `execution` | object | No | File-level execution policy |
 | `filters` | array | No | File-level global filters (AND with rule-level) |
@@ -282,6 +284,30 @@ rules:
 Priority: **Rule-level > File-level > Default (block)**
 
 ---
+
+### 2.2.5 `async` — Asynchronous Execution
+
+When `async: true`, a matched request is accepted immediately with HTTP 202 while the actions run in the background:
+
+```yaml
+name: "deploy"
+async: true                     # return 202, execute in background
+execution:
+  policy: "block"
+rules:
+  - name: "deploy-main"
+    actions:
+      - type: "command"
+        cmd: "deploy.sh"
+```
+
+Behavior details:
+
+- The 202 response carries a `request_id` used to correlate logs and execution records
+- Execution policies (`block` / `cooldown`) are still enforced — policy rejections (409/429) are returned synchronously
+- Backpressure: when the number of running background tasks reaches `server.max_async_tasks`, new requests are rejected with 429
+- Recent async executions are queryable via `GET /api/executions` (see Usage docs)
+- On shutdown, in-flight async tasks get a 30-second grace period before forced exit
 
 ### 2.3 `filters` — File-Level Filters
 

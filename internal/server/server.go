@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +68,9 @@ func (s *Server) ListenAndServe() error {
 	// Health check endpoint
 	mux.HandleFunc("/health", s.handleHealth)
 
+	// Async execution records (read-only)
+	mux.HandleFunc("/api/executions", s.handleExecutions)
+
 	// Reload endpoint (internal use)
 	mux.HandleFunc("/_reload", s.handleReload)
 
@@ -110,11 +114,14 @@ func (s *Server) Shutdown() error {
 	defer cancel()
 
 	s.logger.Info("Shutting down server...")
-	s.engine.CloseRuleLoggers()
-	s.engine.Stop()
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shutdown error: %w", err)
 	}
+	// Give in-flight async tasks a grace period, then close loggers so
+	// background goroutines can keep writing until the very end.
+	s.engine.WaitForAsync(30 * time.Second)
+	s.engine.CloseRuleLoggers()
+	s.engine.Stop()
 
 	s.logger.Info("Server stopped")
 	s.logger.Close()
@@ -125,9 +132,12 @@ func (s *Server) Shutdown() error {
 // Used by external callers (e.g. Windows stop signal handler) that manage logger lifecycle separately.
 func (s *Server) GracefulShutdown(ctx context.Context) error {
 	s.logger.Info("Shutting down HTTP server...")
+	err := s.httpServer.Shutdown(ctx)
+	// Give in-flight async tasks a grace period before closing loggers
+	s.engine.WaitForAsync(30 * time.Second)
 	s.engine.CloseRuleLoggers()
 	s.engine.Stop()
-	return s.httpServer.Shutdown(ctx)
+	return err
 }
 
 // ErrCh returns the channel that receives HTTP server listen errors.
@@ -359,6 +369,32 @@ func isLoopbackAddr(remoteAddr string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// handleExecutions lists recent async execution records, newest first.
+// No authentication: consistent with /health and /api/relay/status.
+func (s *Server) handleExecutions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, engine.Response{
+			Code:    405,
+			Message: "Method not allowed",
+		})
+		return
+	}
+
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"executions": s.engine.ExecStore().List(limit),
+	})
 }
 
 // writeJSON writes a JSON response.

@@ -303,6 +303,37 @@ When relay is configured, an additional `relay` field is included:
 {"status": "ok", "uptime": "2h30m15s", "rules": 3, "version": "x.y.z", "relay": {"role": "upstream+downstream", "upstream_targets": 3, "downstream_connected": true}}
 ```
 
+### Async Execution Records
+
+```
+GET /api/executions?limit=20
+```
+
+Lists recent asynchronous executions (newest first), kept in memory (last 100). No authentication, consistent with `/health`. `limit` defaults to 20 and is capped at 100.
+
+```bash
+curl http://localhost:9000/api/executions?limit=5
+```
+
+```json
+{
+  "executions": [
+    {
+      "request_id": "1720000000000-a1b2c3d4",
+      "config": "deploy",
+      "rule": "deploy-main",
+      "status": "succeeded",
+      "started_at": "2026-08-05T10:00:00Z",
+      "finished_at": "2026-08-05T10:00:12Z",
+      "duration": "12.05s",
+      "exit_code": 0
+    }
+  ]
+}
+```
+
+`status` is one of `running`, `succeeded`, or `failed`. Failed records carry `exit_code` (`-1` when not applicable) and an `error` message.
+
 ### Relay API
 
 #### `GET /api/relay/status` — Comprehensive Relay Status (always available, no auth)
@@ -431,6 +462,22 @@ When `policy: "cooldown"` and the cooldown window is active:
   "message": "Task 'github-auto-deploy/push-to-main' is in cooldown, retry in 120 seconds"
 }
 ```
+
+### Accepted Asynchronously (202)
+
+When the matched config has `async: true`, the request is accepted immediately and actions run in the background:
+
+```json
+{
+  "code": 202,
+  "message": "Accepted, executing asynchronously",
+  "config": "deploy",
+  "rule": "deploy-main",
+  "request_id": "1720000000000-a1b2c3d4"
+}
+```
+
+Use `request_id` to correlate log entries and execution records.
 
 ### Base Route Disabled (400)
 

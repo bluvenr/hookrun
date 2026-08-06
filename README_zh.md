@@ -86,6 +86,7 @@ $ curl -X POST http://localhost:9000/webhook/github-auto-deploy \
 - **灵活验证** — Token（Header/Query）+ HMAC 签名（GitHub/GitLab）+ IP 白名单，AND 组合
 - **多条件过滤** — 支持 Header / Query / Body 匹配，操作符：`eq` `ne` `contains` `regex`
 - **执行策略** — 三种模式：`block`（防并发）、`always`（始终执行）、`cooldown`（冷却限频）
+- **异步执行** — 文件级 `async: true` 立即返回 HTTP 202，后台执行 actions，可通过 `/api/executions` 查询执行记录
 - **策略继承** — 文件级 → 规则级逐层覆盖
 - **文件级过滤** — 全局约束应用于所有规则，与规则级 filters 为 AND 组合
 - **参数传递** — 模板变量（`{{.body.ref}}`）、`pass_args` 和环境变量注入（`env_from`）将请求数据传入命令/脚本

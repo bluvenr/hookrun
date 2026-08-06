@@ -125,7 +125,7 @@ func runServer() error {
 	}
 
 	// Init engine
-	eng := engine.New(configMgr.Rules(), log, cfg.Log.Mode, cfg.Log.RetentionDays, cfg.Log.MaxSizeMB)
+	eng := engine.New(configMgr.Rules(), log, cfg.Log.Mode, cfg.Log.RetentionDays, cfg.Log.MaxSizeMB, cfg.Server.MaxAsyncTaskLimit())
 
 	// Init relay registry (if enabled)
 	if cfg.Server.IsRelayRegistryEnabled() {
