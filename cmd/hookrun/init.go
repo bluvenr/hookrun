@@ -25,6 +25,9 @@ log:
   # max_size_mb: 0               # only for single mode, 0 = unlimited (default)
 
 config_dir: "./hooks"
+
+# update:
+#   check: true                  # check for new versions on start (default: true)
 `
 
 	hooksTemplateGeneric = `# Hook Rule Configuration

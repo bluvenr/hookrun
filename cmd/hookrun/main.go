@@ -18,6 +18,7 @@ import (
 	"github.com/bluvenr/hookrun/internal/engine"
 	"github.com/bluvenr/hookrun/internal/logger"
 	"github.com/bluvenr/hookrun/internal/server"
+	"github.com/bluvenr/hookrun/internal/update"
 	"github.com/bluvenr/hookrun/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -53,6 +54,7 @@ relay forwarding, and hot-reload.`,
 		validateCmd(),
 		initCmd(),
 		relayCmd(),
+		updateCmd(),
 		versionCmd(),
 	)
 
@@ -72,11 +74,17 @@ mode (background). Use -f flag to run in foreground mode for debugging.`,
   hookrun start -f                 # Foreground mode
   hookrun start -c /etc/hookrun/config.yaml  # Custom config path`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Clean up a leftover binary from a previous Windows self-update.
+			update.CleanupOldBinary()
+
 			// Check if already running
 			pid, err := daemon.ReadPID()
 			if err == nil && daemon.IsRunning(pid) {
 				return fmt.Errorf("HookRun is already running (PID: %d)", pid)
 			}
+
+			// Non-blocking update reminder (respects config; skipped in CI/containers).
+			maybeNotifyUpdate()
 
 			if foreground {
 				return runServer()
@@ -591,18 +599,29 @@ Reports syntax errors and configuration issues without starting the server.`,
 
 // ---- version command ----
 func versionCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:     "version",
-		Short:   "Show version information",
-		Long:    "Show the version, build time, Go version, and OS/architecture of this binary.",
-		Example: `  hookrun version`,
+	var check bool
+
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Long: `Show the version, build time, Go version, and OS/architecture of this binary.
+Use --check to query GitHub for the latest release and compare with the current version.`,
+		Example: `  hookrun version              # Show local version info
+  hookrun version --check      # Also check online for the latest release`,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("HookRun v%s\n", version.Version)
 			fmt.Printf("Build time: %s\n", version.BuildTime)
 			fmt.Printf("Go version: %s\n", runtime.Version())
 			fmt.Printf("OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+			if check {
+				checkForUpdate()
+			}
 		},
 	}
+
+	cmd.Flags().BoolVar(&check, "check", false, "Check GitHub for the latest release")
+
+	return cmd
 }
 
 // syscallSighup returns SIGHUP for Unix systems.

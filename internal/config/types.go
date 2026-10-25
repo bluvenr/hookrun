@@ -12,6 +12,12 @@ type GlobalConfig struct {
 	Log         LogConfig          `yaml:"log"`
 	ConfigDir   string             `yaml:"config_dir"`
 	RelayClient *RelayClientConfig `yaml:"relay_client,omitempty"` // downstream auto-registration
+	Update      UpdateConfig       `yaml:"update"`
+}
+
+// UpdateConfig controls version-check and self-update behavior.
+type UpdateConfig struct {
+	Check *bool `yaml:"check,omitempty"` // enable update check/reminder (default: true)
 }
 
 // ServerConfig holds HTTP server settings.
@@ -270,6 +276,12 @@ func (s *ServerConfig) IsRelayRegistryEnabled() bool {
 // HasRelayClient returns true when relay_client is configured.
 func (g *GlobalConfig) HasRelayClient() bool {
 	return g.RelayClient != nil && g.RelayClient.Upstream != ""
+}
+
+// UpdateCheckEnabled returns true when the update check/reminder is enabled.
+// Defaults to true when update.check is not explicitly set.
+func (g *GlobalConfig) UpdateCheckEnabled() bool {
+	return g.Update.Check == nil || *g.Update.Check
 }
 
 // Validate checks the RuleConfig for errors.
