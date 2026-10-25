@@ -233,12 +233,16 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		s.logger.Info("Response [%d] config=%s rule=%s: %s", resp.Code, resp.Config, resp.Rule, resp.Message)
 	}
 
-	// Determine overall HTTP status
+	// Determine overall HTTP status: error codes (>= 400) take precedence;
+	// otherwise a 202 from async acceptance must surface as HTTP 202.
 	statusCode := http.StatusOK
 	for _, resp := range responses {
 		if resp.Code >= 400 {
 			statusCode = resp.Code
 			break
+		}
+		if resp.Code == http.StatusAccepted {
+			statusCode = http.StatusAccepted
 		}
 	}
 

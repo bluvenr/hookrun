@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluvenr/hookrun/internal/config"
 	"github.com/bluvenr/hookrun/internal/engine"
 	"github.com/bluvenr/hookrun/internal/execstore"
 	"github.com/bluvenr/hookrun/internal/logger"
@@ -95,5 +99,88 @@ func TestHandleExecutions_MethodNotAllowed(t *testing.T) {
 	s.handleExecutions(rec, httptest.NewRequest(http.MethodPost, "/api/executions", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rec.Code)
+	}
+}
+
+// newWebhookTestServer builds a full server backed by real config files on
+// disk so handleWebhook can run end-to-end (manager + engine + routes).
+func newWebhookTestServer(t *testing.T, ruleYAML string) (*Server, *engine.Engine) {
+	t.Helper()
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, "hooks")
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	globalYAML := "server:\n  port: 9000\n  route: \"/webhook\"\nlog:\n  mode: \"single\"\n  path: " +
+		filepath.Join(dir, "logs") + "\nconfig_dir: " + hooksDir + "\n"
+	cfgPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte(globalYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hooksDir, "deploy.yaml"), []byte(ruleYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := config.NewManager(cfgPath)
+	if err := mgr.Load(); err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	log := logger.New(logger.Options{Mode: "single", Path: dir, Console: false})
+	eng := engine.New(mgr.Rules(), log, "single", 30, 0, 4)
+	t.Cleanup(func() {
+		eng.WaitForAsync(5 * time.Second)
+		eng.Stop()
+		log.Close()
+	})
+	return New(mgr, eng, log), eng
+}
+
+func TestHandleWebhook_AsyncReturnsHTTP202(t *testing.T) {
+	ruleYAML := `name: "deploy"
+async: true
+rules:
+  - name: "r1"
+    actions:
+      - type: "command"
+        cmd: "echo async-http-test"
+`
+	s, eng := newWebhookTestServer(t, ruleYAML)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/webhook/deploy", strings.NewReader(`{}`))
+	s.handleWebhook(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Errorf("expected HTTP 202 for async config, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	var body engine.Response
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if body.Code != 202 {
+		t.Errorf("expected body code 202, got %d", body.Code)
+	}
+	if body.RequestID == "" {
+		t.Error("202 response must carry request_id")
+	}
+	eng.WaitForAsync(5 * time.Second)
+}
+
+func TestHandleWebhook_SyncStillReturnsHTTP200(t *testing.T) {
+	ruleYAML := `name: "deploy"
+rules:
+  - name: "r1"
+    actions:
+      - type: "command"
+        cmd: "echo sync-http-test"
+`
+	s, _ := newWebhookTestServer(t, ruleYAML)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/webhook/deploy", strings.NewReader(`{}`))
+	s.handleWebhook(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected HTTP 200 for sync config, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
 }

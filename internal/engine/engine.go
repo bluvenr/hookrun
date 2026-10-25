@@ -143,9 +143,11 @@ func (e *Engine) WaitForAsync(timeout time.Duration) {
 		e.asyncWG.Wait()
 		close(done)
 	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case <-done:
-	case <-time.After(timeout):
+	case <-timer.C:
 		e.logger.Warn("Shutdown: async tasks still running after %v, forcing exit", timeout)
 	}
 }
