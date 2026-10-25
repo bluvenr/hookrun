@@ -217,6 +217,9 @@ PASS: All configurations are valid
 
 ```bash
 hookrun version
+
+# 同时联网检查最新发行版
+hookrun version --check
 ```
 
 输出：
@@ -227,6 +230,30 @@ Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64
 ```
+
+使用 `--check` 时，HookRun 会查询 GitHub 最新发行版，并提示是否有可用更新。
+
+---
+
+### `update` — 自更新
+
+```bash
+# 更新到最新版本
+hookrun update
+
+# 更新（或降级）到指定版本
+hookrun update --version 1.1.4
+
+# 即使已是最新也重新安装
+hookrun update --force
+```
+
+从 GitHub Releases 下载官方二进制并替换当前可执行文件。支持 Linux、macOS 和 Windows。
+
+- 若二进制位于受保护目录（如 `/usr/local/bin`），需使用 `sudo`（Unix）或以管理员身份运行（Windows）
+- 更新后运行 `hookrun restart` 以应用新版本
+- 可通过 `config.yaml` 中的 `update.check: false` 关闭 `start` 时的自动更新提醒
+- 在容器/CI 环境及开发构建中会自动跳过提醒
 
 ---
 
@@ -239,6 +266,7 @@ hookrun help
 # 显示指定命令的帮助
 hookrun help relay
 hookrun help relay status
+hookrun help update
 
 # 也可使用 --help 或 -h 参数
 hookrun start --help

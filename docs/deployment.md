@@ -58,6 +58,32 @@ hookrun start
 hookrun status
 ```
 
+### Updating
+
+HookRun can check for and install new versions without re-running the installer:
+
+```bash
+# Check whether a newer release is available
+hookrun version --check
+
+# Self-update to the latest version
+hookrun update
+
+# Pin a specific version, or force a reinstall
+hookrun update --version 1.1.4
+hookrun update --force
+
+# Apply the new binary
+hookrun restart
+```
+
+Notes:
+
+- On `start`, HookRun shows a non-blocking update reminder at most once per 24h (cached in `~/.hookrun/`).
+- Disable it with `update.check: false` in `config.yaml`.
+- Reminders are skipped automatically inside containers/CI and for development builds; use `hookrun update` explicitly there.
+- If the binary is in a protected path (e.g. `/usr/local/bin`), run `hookrun update` with `sudo` (Unix) or as Administrator (Windows).
+
 ---
 
 ## 1. Build from Source

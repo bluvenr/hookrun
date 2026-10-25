@@ -373,7 +373,8 @@ docker run -d --name hookrun \
 | `hookrun validate` | Validate all YAML files |
 | `hookrun relay status` | Show relay status (role, upstream/downstream info) |
 | `hookrun relay targets` | List registered downstream targets (token auto-read from config) |
-| `hookrun version` | Show version information |
+| `hookrun update` | Self-update to the latest version (`--version` to pin, `--force` to reinstall) |
+| `hookrun version` | Show version information (`--check` to compare with the latest release) |
 
 ## Configuration Guide
 

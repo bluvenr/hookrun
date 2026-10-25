@@ -217,6 +217,9 @@ Run `validate` before starting or reloading to catch configuration errors early.
 
 ```bash
 hookrun version
+
+# Also check online for the latest release
+hookrun version --check
 ```
 
 Output:
@@ -227,6 +230,30 @@ Build time: 2026-06-11
 Go version: go1.23.3
 OS/Arch:    linux/amd64
 ```
+
+With `--check`, HookRun queries GitHub for the latest release and prints whether an update is available.
+
+---
+
+### `update` — Self-Update
+
+```bash
+# Update to the latest version
+hookrun update
+
+# Update (or downgrade) to a specific version
+hookrun update --version 1.1.4
+
+# Reinstall even if already up to date
+hookrun update --force
+```
+
+Downloads the official binary from GitHub Releases and replaces the current executable. Works on Linux, macOS, and Windows.
+
+- If the binary is in a protected location (e.g. `/usr/local/bin`), run with `sudo` (Unix) or as Administrator (Windows)
+- After updating, run `hookrun restart` to apply the new version
+- Automatic update reminders on `start` can be disabled via `update.check: false` in `config.yaml`
+- Reminders are skipped automatically inside containers/CI and for development builds
 
 ---
 
@@ -239,6 +266,7 @@ hookrun help
 # Show help for a specific command
 hookrun help relay
 hookrun help relay status
+hookrun help update
 
 # Alternative: use --help or -h flag
 hookrun start --help

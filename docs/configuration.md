@@ -26,6 +26,7 @@ HookRun uses two levels of YAML configuration:
 | `log.retention_days` | int | `30` | Days to retain daily log files |
 | `log.max_size_mb` | int | `0` (unlimited) | Max file size in MB before rotation (single mode only) |
 | `config_dir` | string | `./hooks` | Directory containing rule YAML files |
+| `update.check` | bool | `true` | Check for new versions and show an update reminder on `start` |
 
 ### Example
 
@@ -42,6 +43,9 @@ log:
   # max_size_mb: 0             # only for single mode, 0 = unlimited (default)
 
 config_dir: "./hooks"
+
+# update:
+#   check: true                  # check for new versions on start (default: true)
 ```
 
 ### `server.allow_all`

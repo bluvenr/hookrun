@@ -373,7 +373,8 @@ docker run -d --name hookrun \
 | `hookrun validate` | 校验所有 YAML 文件语法 |
 | `hookrun relay status` | 查看 Relay 状态（角色、上下游信息） |
 | `hookrun relay targets` | 列出已注册的下游目标（自动读取配置中的 Token） |
-| `hookrun version` | 查看版本信息 |
+| `hookrun update` | 自更新到最新版本（`--version` 指定版本，`--force` 强制重装） |
+| `hookrun version` | 查看版本信息（`--check` 与最新发行版对比） |
 
 ## 配置详解
 

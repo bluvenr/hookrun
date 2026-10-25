@@ -26,6 +26,7 @@ HookRun 使用两级 YAML 配置：
 | `log.retention_days` | int | `30` | 日志保留天数（仅 daily 模式） |
 | `log.max_size_mb` | int | `0`（不限） | 日志文件大小上限 MB，超过后轮转（仅 single 模式） |
 | `config_dir` | string | `./hooks` | 规则 YAML 文件所在目录 |
+| `update.check` | bool | `true` | 是否在 `start` 时检查新版本并提示更新 |
 
 ### 示例
 
@@ -42,6 +43,9 @@ log:
   # max_size_mb: 0             # 仅 single 模式，0 = 不限（默认）
 
 config_dir: "./hooks"
+
+# update:
+#   check: true                  # 启动时检查新版本（默认：true）
 ```
 
 ### `server.allow_all`

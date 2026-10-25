@@ -58,6 +58,32 @@ hookrun start
 hookrun status
 ```
 
+### 更新版本
+
+HookRun 无需重新运行安装脚本即可检查并安装新版本：
+
+```bash
+# 检查是否有更新的发行版
+hookrun version --check
+
+# 自更新到最新版本
+hookrun update
+
+# 指定版本，或强制重装
+hookrun update --version 1.1.4
+hookrun update --force
+
+# 应用新二进制
+hookrun restart
+```
+
+说明：
+
+- `start` 时会显示非阻塞的更新提醒，每 24 小时最多一次（缓存于 `~/.hookrun/`）。
+- 可在 `config.yaml` 中设置 `update.check: false` 关闭提醒。
+- 在容器/CI 环境及开发构建中会自动跳过提醒；这些场景请显式使用 `hookrun update`。
+- 若二进制位于受保护路径（如 `/usr/local/bin`），需使用 `sudo`（Unix）或以管理员身份（Windows）运行 `hookrun update`。
+
 ---
 
 ## 1. 从源码构建
