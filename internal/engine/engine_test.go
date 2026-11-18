@@ -479,7 +479,7 @@ func TestResolveActionTemplates_BodyVar(t *testing.T) {
 		Query:   map[string]string{},
 		Body:    map[string]interface{}{"branch": "main"},
 	}
-	result := e.resolveActionTemplates("deploy {{.body.branch}}", req, nil)
+	result := e.resolveActionTemplates("deploy {{.body.branch}}", req, nil, false)
 	if result != "deploy main" {
 		t.Errorf("expected 'deploy main', got '%s'", result)
 	}
@@ -491,7 +491,7 @@ func TestResolveActionTemplates_HeaderVar(t *testing.T) {
 		Headers: map[string]string{"x-repo": "myapp"},
 		Query:   map[string]string{},
 	}
-	result := e.resolveActionTemplates("deploy {{.header.x-repo}}", req, nil)
+	result := e.resolveActionTemplates("deploy {{.header.x-repo}}", req, nil, false)
 	if result != "deploy myapp" {
 		t.Errorf("expected 'deploy myapp', got '%s'", result)
 	}
@@ -503,7 +503,7 @@ func TestResolveActionTemplates_QueryVar(t *testing.T) {
 		Headers: map[string]string{},
 		Query:   map[string]string{"env": "prod"},
 	}
-	result := e.resolveActionTemplates("deploy {{.query.env}}", req, nil)
+	result := e.resolveActionTemplates("deploy {{.query.env}}", req, nil, false)
 	if result != "deploy prod" {
 		t.Errorf("expected 'deploy prod', got '%s'", result)
 	}
@@ -516,7 +516,7 @@ func TestResolveActionTemplates_PassArgs(t *testing.T) {
 		Query:   map[string]string{},
 	}
 	passArgs := []config.PassArg{{Source: "header", Key: "x-token"}}
-	result := e.resolveActionTemplates("echo", req, passArgs)
+	result := e.resolveActionTemplates("echo", req, passArgs, false)
 	if result != "echo abc123" {
 		t.Errorf("expected 'echo abc123', got '%s'", result)
 	}
@@ -525,7 +525,7 @@ func TestResolveActionTemplates_PassArgs(t *testing.T) {
 func TestResolveActionTemplates_NoTemplates(t *testing.T) {
 	e := newTestEngine(t)
 	req := &RequestData{Headers: map[string]string{}, Query: map[string]string{}}
-	result := e.resolveActionTemplates("plain command", req, nil)
+	result := e.resolveActionTemplates("plain command", req, nil, false)
 	if result != "plain command" {
 		t.Errorf("expected unchanged, got '%s'", result)
 	}

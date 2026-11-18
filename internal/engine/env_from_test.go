@@ -161,7 +161,7 @@ func TestResolveActionTemplates_RawBody(t *testing.T) {
 		Query:   map[string]string{},
 		BodyRaw: `{"action":"push","ref":"main"}`,
 	}
-	result := e.resolveActionTemplates(`echo '{{.raw_body}}'`, req, nil)
+	result := e.resolveActionTemplates(`echo '{{.raw_body}}'`, req, nil, false)
 	expected := `echo '{"action":"push","ref":"main"}'`
 	if result != expected {
 		t.Errorf("expected '%s', got '%s'", expected, result)
@@ -175,7 +175,7 @@ func TestResolveActionTemplates_RawBodyWithDollarSign(t *testing.T) {
 		Query:   map[string]string{},
 		BodyRaw: `{"price":"$100"}`,
 	}
-	result := e.resolveActionTemplates(`echo '{{.raw_body}}'`, req, nil)
+	result := e.resolveActionTemplates(`echo '{{.raw_body}}'`, req, nil, false)
 	expected := `echo '{"price":"$100"}'`
 	if result != expected {
 		t.Errorf("expected '%s', got '%s'", expected, result)
@@ -189,7 +189,7 @@ func TestResolveActionTemplates_RawBodyWithSpaces(t *testing.T) {
 		Query:   map[string]string{},
 		BodyRaw: `{"msg":"hello world"}`,
 	}
-	result := e.resolveActionTemplates(`process {{ .raw_body }}`, req, nil)
+	result := e.resolveActionTemplates(`process {{ .raw_body }}`, req, nil, false)
 	expected := `process {"msg":"hello world"}`
 	if result != expected {
 		t.Errorf("expected '%s', got '%s'", expected, result)

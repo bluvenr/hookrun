@@ -577,6 +577,8 @@ actions:
 
 如果模板变量无法解析，将被替换为空字符串并记录警告日志。
 
+> **安全 — shell 转义（command/script）**：插值到 command `cmd` 或 script `path` 中的请求来源值，会按其所处的 shell 引号上下文（单引号、双引号或无引号）自动转义。因此值无法突破外层引号注入额外的 shell 命令（CWE-78），其字面内容被原样保留。webhook 的 `url`/`headers`/`body` 与 script 的 `args` 不在此处做 shell 插值，逐字透传（脚本参数另按 argv 单独转义）。向脚本传递不可信请求数据时，优先用 `env_from` 或 `pass_args`，而非内联模板。
+
 #### `pass_args` — 提取并追加参数
 
 `pass_args` 从请求中提取值并追加为命令或脚本的尾部参数。适合传递动态数据而无需在命令字符串中嵌入模板变量。

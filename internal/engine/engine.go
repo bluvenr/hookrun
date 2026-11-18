@@ -784,14 +784,14 @@ func (e *Engine) executeSingleAction(action *config.Action, req *RequestData, co
 	switch action.Type {
 	case "command":
 		envVars := e.buildEnvVars(action, req)
-		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs)
+		resolvedCmd := e.resolveActionTemplates(action.Cmd, req, action.PassArgs, true)
 		return executor.ExecuteCommand(resolvedCmd, action.Timeout, action.Isolate, envVars)
 	case "script":
 		envVars := e.buildEnvVars(action, req)
-		resolvedPath := e.resolveActionTemplates(action.Path, req, nil)
+		resolvedPath := e.resolveActionTemplates(action.Path, req, nil, true)
 		var resolvedArgs []string
 		for _, arg := range action.Args {
-			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil))
+			resolvedArgs = append(resolvedArgs, e.resolveActionTemplates(arg, req, nil, false))
 		}
 		return executor.ExecuteScript(resolvedPath, resolvedArgs, action.Timeout, action.Isolate, envVars)
 	case "webhook":
@@ -836,53 +836,20 @@ func calcRetryInterval(attempt, baseInterval int) time.Duration {
 //	{{.body.<path>}}    - extract from JSON body (supports dot notation and array index)
 //	{{.header.<name>}}  - extract from request header
 //	{{.query.<name>}}   - extract from query parameter
-func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs []config.PassArg) string {
-	result := tmpl
-
-	// 0. Resolve {{.raw_body}} template
-	result = tmplRawBodyRe.ReplaceAllStringFunc(result, func(_ string) string {
-		return req.BodyRaw
-	})
-
-	// 1. Resolve {{.body.xxx}} templates
-	result = tmplBodyRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := tmplBodyRe.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
-		}
-		val := e.extractBodyValue(req.Body, sub[1])
-		if val == "" {
-			e.logger.Warn("Template variable not found: %s", match)
-		}
-		return val
-	})
-
-	// 2. Resolve {{.header.xxx}} templates
-	result = tmplHeaderRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := tmplHeaderRe.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
-		}
-		key := strings.ToLower(sub[1])
-		val := req.Headers[key]
-		if val == "" {
-			e.logger.Warn("Template variable not found: %s", match)
-		}
-		return val
-	})
-
-	// 3. Resolve {{.query.xxx}} templates
-	result = tmplQueryRe.ReplaceAllStringFunc(result, func(match string) string {
-		sub := tmplQueryRe.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
-		}
-		val := req.Query[sub[1]]
-		if val == "" {
-			e.logger.Warn("Template variable not found: %s", match)
-		}
-		return val
-	})
+func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs []config.PassArg, shellEscape bool) string {
+	var result string
+	if shellEscape {
+		// Command cmds and script paths are handed to sh -c: escape each
+		// request-derived value for the shell quoting context it appears in,
+		// so a value cannot break out and inject commands (D-04, CWE-78).
+		result = executor.InterpolateShell(tmpl, func(match string) string {
+			return e.resolveTemplateValue(match, req)
+		})
+	} else {
+		// Webhook URLs/headers/bodies and script argv are not shell-interpreted
+		// here (argv is quoted separately by the executor): resolve verbatim.
+		result = e.resolveTemplatesPlain(tmpl, req)
+	}
 
 	// 4. Append pass_args as trailing arguments (shell-quoted so values with
 	// spaces or metacharacters cannot break or inject into the command)
@@ -898,6 +865,66 @@ func (e *Engine) resolveActionTemplates(tmpl string, req *RequestData, passArgs 
 	}
 
 	return result
+}
+
+// resolveTemplatesPlain resolves template variables verbatim (no shell escaping).
+// Used for webhook URLs/headers/bodies and script argv, which are not handed to
+// a shell as inline text.
+func (e *Engine) resolveTemplatesPlain(tmpl string, req *RequestData) string {
+	result := tmpl
+
+	// 0. Resolve {{.raw_body}} template
+	result = tmplRawBodyRe.ReplaceAllStringFunc(result, func(_ string) string {
+		return req.BodyRaw
+	})
+
+	// 1. Resolve {{.body.xxx}} templates
+	result = tmplBodyRe.ReplaceAllStringFunc(result, func(match string) string {
+		return e.resolveTemplateValue(match, req)
+	})
+
+	// 2. Resolve {{.header.xxx}} templates
+	result = tmplHeaderRe.ReplaceAllStringFunc(result, func(match string) string {
+		return e.resolveTemplateValue(match, req)
+	})
+
+	// 3. Resolve {{.query.xxx}} templates
+	result = tmplQueryRe.ReplaceAllStringFunc(result, func(match string) string {
+		return e.resolveTemplateValue(match, req)
+	})
+
+	return result
+}
+
+// resolveTemplateValue extracts the value for a single template placeholder
+// ({{.raw_body}}, {{.body.x}}, {{.header.x}}, {{.query.x}}). Unknown placeholders
+// are returned unchanged. It logs a warning when a referenced variable is empty.
+func (e *Engine) resolveTemplateValue(match string, req *RequestData) string {
+	if tmplRawBodyRe.MatchString(match) {
+		return req.BodyRaw
+	}
+	if sub := tmplBodyRe.FindStringSubmatch(match); len(sub) >= 2 {
+		val := e.extractBodyValue(req.Body, sub[1])
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	}
+	if sub := tmplHeaderRe.FindStringSubmatch(match); len(sub) >= 2 {
+		val := req.Headers[strings.ToLower(sub[1])]
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	}
+	if sub := tmplQueryRe.FindStringSubmatch(match); len(sub) >= 2 {
+		val := req.Query[sub[1]]
+		if val == "" {
+			e.logger.Warn("Template variable not found: %s", match)
+		}
+		return val
+	}
+	return match
 }
 
 // extractPassArgValue extracts a value from the request based on PassArg config.

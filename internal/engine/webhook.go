@@ -55,7 +55,7 @@ func (e *Engine) executeWebhook(action *config.Action, req *RequestData, configN
 	start := time.Now()
 
 	// 1. Resolve URL templates
-	url := e.resolveActionTemplates(action.URL, req, nil)
+	url := e.resolveActionTemplates(action.URL, req, nil, false)
 
 	// 2. Build headers (merge order: auto → forward → custom)
 	headers := make(map[string]string)
@@ -75,7 +75,7 @@ func (e *Engine) executeWebhook(action *config.Action, req *RequestData, configN
 
 	// 2c. Custom headers (highest priority, supports templates)
 	for name, tmpl := range action.Headers {
-		headers[name] = e.resolveActionTemplates(tmpl, req, nil)
+		headers[name] = e.resolveActionTemplates(tmpl, req, nil, false)
 	}
 
 	// 3. Build body
@@ -90,7 +90,7 @@ func (e *Engine) executeWebhook(action *config.Action, req *RequestData, configN
 		bodyReader = bytes.NewBufferString(resolved)
 	} else {
 		// Standard template resolution
-		resolved := e.resolveActionTemplates(action.Body, req, nil)
+		resolved := e.resolveActionTemplates(action.Body, req, nil, false)
 		bodyReader = bytes.NewBufferString(resolved)
 	}
 

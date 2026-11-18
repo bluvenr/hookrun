@@ -577,6 +577,8 @@ actions:
 
 If a template variable cannot be resolved, it is replaced with an empty string and a warning is logged.
 
+> **Security — shell escaping (command/script)**: Request-derived values interpolated into a command `cmd` or a script `path` are automatically escaped for the shell quoting context they appear in (single-quoted, double-quoted, or unquoted). A value therefore cannot break out of its surrounding quotes and inject additional shell commands (CWE-78); its literal content is preserved. Webhook `url`/`headers`/`body` and script `args` are not shell-interpolated here and pass through verbatim (script arguments are quoted separately as argv). To hand untrusted request data to a script, prefer `env_from` or `pass_args` over inline templates.
+
 #### `pass_args` — Extract and Append Parameters
 
 `pass_args` extracts values from the request and appends them as trailing arguments to the command or script. This is useful for passing dynamic data without embedding template variables in the command string.
