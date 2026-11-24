@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -527,5 +528,72 @@ rules:
 
 	if _, err := loadRuleFile(path); err == nil {
 		t.Error("rule file without name should fail")
+	}
+}
+
+// --- D-01: validation errors must name the offending rule file ---
+
+func TestLoadRuleFile_ValidationErrorNamesFile(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"empty_rules", "name: empty-rules\nrules: []\n"},
+		{"bad_policy", "name: bad-policy\nexecution:\n  policy: sometimes\nrules:\n  - name: r1\n    actions:\n      - type: command\n        cmd: echo x\n"},
+		{"bad_operator", "name: bad-operator\nrules:\n  - name: r1\n    filters:\n      - type: header\n        key: X-T\n        operator: sounds-like\n        value: x\n    actions:\n      - type: command\n        cmd: echo x\n"},
+		{"missing_name", "rules:\n  - name: r1\n    actions:\n      - type: command\n        cmd: echo x\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, tc.name+".yaml")
+			if err := os.WriteFile(path, []byte(tc.content), 0644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := loadRuleFile(path)
+			if err == nil {
+				t.Fatalf("%s should fail validation", tc.name)
+			}
+			if n := strings.Count(err.Error(), path); n != 1 {
+				t.Errorf("error should name file '%s' exactly once, got %d occurrence(s): %v", path, n, err)
+			}
+		})
+	}
+}
+
+func TestValidateAll_RuleErrorNamesFile(t *testing.T) {
+	dir := t.TempDir()
+	hooks := filepath.Join(dir, "hooks")
+	if err := os.MkdirAll(hooks, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := "name: ok\nrules:\n  - name: r1\n    actions:\n      - type: command\n        cmd: echo x\n"
+	path := filepath.Join(hooks, "ok.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	globalPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(globalPath, []byte("config_dir: "+hooks+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(globalPath)
+	if err := m.Load(); err != nil {
+		t.Fatalf("valid config should load: %v", err)
+	}
+	// Break the loaded rule so ValidateAll (not Load) surfaces the error.
+	// Use empty rules: this branch carries no file path in types.go today.
+	m.rules[0].Rules = nil
+	errs := m.ValidateAll()
+	if len(errs) == 0 {
+		t.Fatal("broken rule should produce a validation error")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), path) {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("ValidateAll error should name file '%s', got: %v", path, errs)
 	}
 }

@@ -293,9 +293,11 @@ func (g *GlobalConfig) UpdateCheckEnabled() bool {
 }
 
 // Validate checks the RuleConfig for errors.
+// File-path context is added by the loader (loadRuleFile / ValidateAll),
+// so messages here must not embed FilePath themselves.
 func (r *RuleConfig) Validate() error {
 	if r.Name == "" {
-		return fmt.Errorf("rule config file '%s': 'name' is required", r.FilePath)
+		return fmt.Errorf("'name' is required")
 	}
 
 	// Validate auth

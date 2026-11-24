@@ -82,7 +82,7 @@ func (m *Manager) ValidateAll() []error {
 	// Validate rules
 	for _, r := range m.rules {
 		if err := r.Validate(); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("rule file '%s': %w", r.FilePath, err))
 		}
 	}
 
@@ -210,7 +210,7 @@ func loadRuleFile(path string) (*RuleConfig, error) {
 	rc.FileName = strings.TrimSuffix(filepath.Base(path), ext)
 
 	if err := rc.Validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rule file '%s': %w", path, err)
 	}
 
 	return &rc, nil

@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -297,8 +300,59 @@ func startDaemon() error {
 		return fmt.Errorf("failed to start daemon: %w", err)
 	}
 
+	// Wait until the child actually serves /health (or dies trying).
+	// Reporting success right after fork hides bind failures (D-06).
+	healthURL := fmt.Sprintf("http://127.0.0.1:%d/health", configMgr.Global().Server.Port)
+	if err := waitDaemonReady(cmd, healthURL, 10*time.Second); err != nil {
+		return fmt.Errorf("daemon failed to start: %w", err)
+	}
+
 	fmt.Printf("HookRun started in background (PID: %d)\n", cmd.Process.Pid)
 	return nil
+}
+
+// waitDaemonReady polls the daemon's health endpoint until it answers 200,
+// the child exits, or the timeout elapses. A health 200 alone is not proof of
+// success: another process may own the port, so the child's liveness is
+// re-checked after a healthy response (D-06). On timeout the child is left
+// running — it may still be slow but healthy; the caller only reports failure.
+func waitDaemonReady(cmd *exec.Cmd, healthURL string, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	deadline := time.Now().Add(timeout)
+	for {
+		select {
+		case err := <-done:
+			return fmt.Errorf("daemon exited during startup: %v", err)
+		default:
+		}
+
+		resp, err := client.Get(healthURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				// Re-check liveness after a short grace window: a squatter
+				// may answer 200 while our child is still dying (D-06).
+				select {
+				case err := <-done:
+					return fmt.Errorf("daemon exited during startup (port answered by another process): %v", err)
+				case <-time.After(200 * time.Millisecond):
+					return nil
+				}
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("daemon did not become ready within %s", timeout)
+		}
+		select {
+		case err := <-done:
+			return fmt.Errorf("daemon exited during startup: %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 // ---- stop command ----
@@ -480,31 +534,69 @@ local configs) without restarting the server. Changes take effect immediately.`,
 				}
 				fmt.Println("Reload signal sent to HookRun")
 			} else {
-				// Use the reload API endpoint
-				cfg := config.Defaults()
-				configMgr := config.NewManager(configPath)
-				if err := configMgr.Load(); err == nil {
-					cfg = configMgr.Global()
-				}
-				resp, err := http.Post(
-					fmt.Sprintf("http://127.0.0.1:%d/_reload", cfg.Server.Port),
-					"application/json", nil)
+				// Use the reload API endpoint. Resolve the running instance's
+				// actual port and surface config errors instead of silently
+				// guessing the default port (D-05).
+				port, err := resolveReloadPort(configPath, daemon.ReadStatus)
 				if err != nil {
-					// Fallback to signal
-					process, _ := os.FindProcess(pid)
-					_ = process.Signal(syscallSighup())
-					fmt.Println("Reload signal sent (SIGHUP)")
-				} else {
-					defer resp.Body.Close()
-					var result map[string]interface{}
-					json.NewDecoder(resp.Body).Decode(&result)
-					fmt.Printf("Reload successful: %v\n", result)
+					return err
 				}
+				client := &http.Client{Timeout: 5 * time.Second}
+				body, err := postReload(client, fmt.Sprintf("http://127.0.0.1:%d/_reload", port))
+				if err != nil {
+					var urlErr *url.Error
+					if errors.As(err, &urlErr) {
+						// Network-level failure only: fall back to SIGHUP.
+						process, _ := os.FindProcess(pid)
+						_ = process.Signal(syscallSighup())
+						fmt.Println("Reload signal sent (SIGHUP)")
+						return nil
+					}
+					// The server processed the request and reported failure.
+					return err
+				}
+				fmt.Printf("Reload successful: %s\n", body)
 			}
 
 			return nil
 		},
 	}
+}
+
+// resolveReloadPort determines the port to send a reload request to.
+// The running instance's status.json port wins over the config file, so a
+// config edited since startup still reaches the live listener. Config load
+// errors are surfaced instead of falling back to the default port (D-05).
+func resolveReloadPort(configPath string, readStatus func() (string, error)) (int, error) {
+	if data, err := readStatus(); err == nil {
+		var info struct {
+			Port int `json:"port"`
+		}
+		if json.Unmarshal([]byte(data), &info) == nil && info.Port > 0 {
+			return info.Port, nil
+		}
+	}
+	configMgr := config.NewManager(configPath)
+	if err := configMgr.Load(); err != nil {
+		return 0, fmt.Errorf("cannot determine reload port: %w", err)
+	}
+	return configMgr.Global().Server.Port, nil
+}
+
+// postReload sends the reload request and treats any non-200 response as a
+// failure carrying the status code and body (D-05). Network errors are
+// returned unwrapped so the caller can decide on a SIGHUP fallback.
+func postReload(client *http.Client, url string) (string, error) {
+	resp, err := client.Post(url, "application/json", nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("reload failed: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return string(body), nil
 }
 
 // ---- validate command ----
