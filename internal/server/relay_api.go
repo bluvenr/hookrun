@@ -4,12 +4,14 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/engine"
+	"github.com/bluvenr/hookrun/internal/netguard"
 )
 
 // registerRequest is the JSON body for POST /api/relay/register.
@@ -74,7 +76,7 @@ func (s *Server) handleRelayRegister(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if err := validateRelayURL(req.URL); err != nil {
+		if err := validateRelayURL(req.URL, s.configMgr.Global().Server.IsRelayBlockPrivate()); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"error": err.Error(),
 			})
@@ -196,9 +198,13 @@ func (s *Server) checkRegistryAuth(r *http.Request) bool {
 	cfg := s.configMgr.Global()
 	expectedToken := cfg.Server.RelayRegistryToken
 
-	// If no token is configured, auth is not required
+	// Empty token means the registry is disabled (IsRelayRegistryEnabled).
+	// Routes are only mounted when a token is configured at startup, but a
+	// hot-reload can clear the token afterwards while the routes stay
+	// mounted — deny everything in that case instead of silently dropping
+	// authentication (D-09).
 	if expectedToken == "" {
-		return true
+		return false
 	}
 
 	authHeader := r.Header.Get("Authorization")
@@ -214,8 +220,11 @@ func (s *Server) checkRegistryAuth(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(authHeader), []byte(expectedToken)) == 1
 }
 
-// validateRelayURL ensures a registered relay URL is a well-formed http(s) URL.
-func validateRelayURL(rawURL string) error {
+// validateRelayURL ensures a registered relay URL is a well-formed http(s)
+// URL and that IP-literal hosts satisfy the SSRF policy (D-08). Hostname
+// hosts cannot be classified without DNS, so they are accepted here and
+// re-checked after resolution by the dial-side Control hook.
+func validateRelayURL(rawURL string, blockPrivate bool) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return errors.New("'url' is not a valid URL: " + err.Error())
@@ -225,6 +234,11 @@ func validateRelayURL(rawURL string) error {
 	}
 	if u.Host == "" {
 		return errors.New("'url' must contain a host")
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil {
+		if err := netguard.CheckIP(ip, blockPrivate); err != nil {
+			return errors.New("'url' host rejected by relay SSRF policy: " + err.Error())
+		}
 	}
 	return nil
 }

@@ -30,6 +30,7 @@ type ServerConfig struct {
 	RelayRegistryToken string `yaml:"relay_registry_token,omitempty"` // registry API auth token (empty = registry disabled)
 	MaxRelayTTL        int    `yaml:"max_relay_ttl,omitempty"`        // max TTL cap in seconds, 0 = unlimited
 	MaxRegistryEntries int    `yaml:"max_registry_entries,omitempty"` // registry pool capacity (default: 100)
+	RelayBlockPrivate  *bool  `yaml:"relay_block_private,omitempty"`  // strict relay SSRF policy: also block loopback/RFC1918/ULA (default: false)
 }
 
 // LogConfig holds logging settings.
@@ -271,6 +272,13 @@ func (s *ServerConfig) MaxAsyncTaskLimit() int {
 // IsRelayRegistryEnabled returns true when the relay registry is activated.
 func (s *ServerConfig) IsRelayRegistryEnabled() bool {
 	return s.RelayRegistryToken != ""
+}
+
+// IsRelayBlockPrivate returns whether the strict relay SSRF policy is on
+// (block loopback/RFC1918/ULA in addition to link-local). Defaults to false
+// so local relay clusters keep working (D-08).
+func (s ServerConfig) IsRelayBlockPrivate() bool {
+	return s.RelayBlockPrivate != nil && *s.RelayBlockPrivate
 }
 
 // HasRelayClient returns true when relay_client is configured.

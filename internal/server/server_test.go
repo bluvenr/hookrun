@@ -184,3 +184,36 @@ rules:
 		t.Errorf("expected HTTP 200 for sync config, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
 }
+
+// Regression for D-03a (HTTP-layer contract): a failing synchronous action
+// must surface as a real HTTP error status, not HTTP 200 "ok". The engine
+// business code alone is not enough — handleWebhook's aggregation must pass
+// the >=400 code through to the status line.
+func TestHandleWebhook_SyncFailureReturnsHTTPError(t *testing.T) {
+	ruleYAML := `name: "deploy"
+rules:
+  - name: "r1"
+    actions:
+      - type: "command"
+        cmd: "exit 7"
+`
+	s, _ := newWebhookTestServer(t, ruleYAML)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/webhook/deploy", strings.NewReader(`{}`))
+	s.handleWebhook(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected HTTP 500 for failed sync action, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	var body engine.Response
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if body.Code < 400 {
+		t.Errorf("expected error business code, got %d", body.Code)
+	}
+	if !strings.Contains(body.Message, "7") {
+		t.Errorf("message should name the failing exit code, got %q", body.Message)
+	}
+}

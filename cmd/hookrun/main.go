@@ -134,6 +134,11 @@ func runServer() error {
 
 	// Init engine
 	eng := engine.New(configMgr.Rules(), log, cfg.Log.Mode, cfg.Log.RetentionDays, cfg.Log.MaxSizeMB, cfg.Server.MaxAsyncTaskLimit())
+	// Live SSRF policy reader for relay dials (D-08): hot-reload safe because
+	// it consults the config manager on every connection.
+	eng.SetRelayPolicyProvider(func() bool {
+		return configMgr.Global().Server.IsRelayBlockPrivate()
+	})
 
 	// Init relay registry (if enabled)
 	if cfg.Server.IsRelayRegistryEnabled() {

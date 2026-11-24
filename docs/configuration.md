@@ -21,6 +21,7 @@ HookRun uses two levels of YAML configuration:
 | `server.relay_registry_token` | string | `""` | Relay registry API auth token. Non-empty enables registry |
 | `server.max_relay_ttl` | int | `0` (unlimited) | Max TTL cap for registered targets (seconds) |
 | `server.max_registry_entries` | int | `100` | Max number of registered targets |
+| `server.relay_block_private` | bool | `false` | Strict relay SSRF policy: also block loopback/RFC1918/IPv6 ULA targets |
 | `log.mode` | string | `daily` | Log mode: `"daily"` (rotate by day) or `"single"` (one file) |
 | `log.path` | string | `./logs` | Log directory (daily) or base path (single) |
 | `log.retention_days` | int | `30` | Days to retain daily log files |
@@ -112,6 +113,30 @@ curl -X POST http://upstream:9000/api/relay/register \
   -H "Content-Type: application/json" \
   -d '{"url":"http://10.0.0.5:9000/webhook","token":"downstream-auth-token","tags":["prod"],"ttl":120}'
 ```
+
+### `server.relay_block_private` — Relay SSRF Policy
+
+Relay targets are registered by remote parties, so their addresses are policy-checked to prevent SSRF (server-side request forgery) against internal services and cloud metadata endpoints.
+
+**Default policy** (`relay_block_private: false` or unset):
+
+- Blocked: link-local ranges — `169.254.0.0/16` (includes the cloud metadata endpoint `169.254.169.254`) and `fe80::/10`. IPv4-mapped IPv6 forms (e.g. `::ffff:169.254.169.254`) are treated as their IPv4 address.
+- Allowed: loopback, RFC1918 private ranges and public addresses — so local/LAN relay clusters keep working out of the box.
+
+**Strict policy** (`relay_block_private: true`) additionally blocks loopback (`127.0.0.0/8`, `::1`), RFC1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and IPv6 ULA (`fc00::/7`). Use it when registered targets must only be public hosts.
+
+```yaml
+server:
+  relay_registry_token: "your-registry-secret"
+  relay_block_private: true   # reject loopback/private relay targets
+```
+
+Enforcement happens at two layers:
+
+1. **Registration** — `POST /api/relay/register` rejects IP-literal hosts that violate the policy with HTTP 400. Hostname hosts are accepted here (they cannot be classified without DNS).
+2. **Dial time** — every resolved IP is re-checked just before connecting, so a hostname that later resolves to a blocked address (DNS rebinding) is still rejected.
+
+The policy is read live on each request/connection, so hot-reload (`/_reload` or SIGHUP) applies changes immediately.
 
 ### `relay_client` — Auto-Registration (Downstream)
 
@@ -486,7 +511,7 @@ The `webhook` type sends an HTTP request to an external URL — useful for notif
 
 **Header merge priority**: Auto headers → `forward_headers` → `headers` (custom overrides all).
 
-**`{{.raw_body}}` template** — Injects the entire original request body as raw JSON. Only available in webhook `body` field (not in command/script actions to prevent shell injection).
+**`{{.raw_body}}` template** — Injects the entire original request body verbatim (JSON or any other payload). Available in webhook `body` fields and in command/script templates alike; in command `cmd` and script `path` the value is automatically shell-escaped (see the security note below), so it cannot inject commands.
 
 > **Important**: The `body` field must be a YAML **string**. Wrap JSON in quotes (`'...'`) or use block scalar (`|`). Template variables like `{{.raw_body}}` must include the `{{ }}` delimiters — writing `.raw_body` alone will be treated as literal text.
 
@@ -562,7 +587,7 @@ Commands, script paths, and script arguments support template variables that are
 
 | Template | Source | Example |
 |----------|--------|---------|
-| `{{.raw_body}}` | Raw request body | Full JSON body as-is |
+| `{{.raw_body}}` | Raw request body | Full request body verbatim (not limited to JSON) |
 | `{{.body.<path>}}` | JSON request body | `{{.body.ref}}`, `{{.body.repository.owner.name}}` |
 | `{{.header.<name>}}` | HTTP request header | `{{.header.X-GitHub-Event}}` |
 | `{{.query.<name>}}` | URL query parameter | `{{.query.token}}` |

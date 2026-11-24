@@ -21,6 +21,7 @@ HookRun 使用两级 YAML 配置：
 | `server.relay_registry_token` | string | `""` | 注册池 API 鉴权 token。非空时启用注册池 |
 | `server.max_relay_ttl` | int | `0`（不限） | 注册目标的最大 TTL 上限（秒） |
 | `server.max_registry_entries` | int | `100` | 注册池最大容量 |
+| `server.relay_block_private` | bool | `false` | 严格 relay SSRF 策略：额外拦截回环/RFC1918/IPv6 ULA 目标 |
 | `log.mode` | string | `daily` | 日志模式：`"daily"`（按天轮转）或 `"single"`（单文件） |
 | `log.path` | string | `./logs` | 日志目录（daily）或基础路径（single） |
 | `log.retention_days` | int | `30` | 日志保留天数（仅 daily 模式） |
@@ -112,6 +113,30 @@ curl -X POST http://upstream:9000/api/relay/register \
   -H "Content-Type: application/json" \
   -d '{"url":"http://10.0.0.5:9000/webhook","token":"downstream-auth-token","tags":["prod"],"ttl":120}'
 ```
+
+### `server.relay_block_private` — Relay SSRF 策略
+
+relay 目标由远端注册方提供，其地址不可信，因此按策略校验，防止对内网服务与云元数据端点的 SSRF（服务端请求伪造）。
+
+**默认策略**（`relay_block_private: false` 或未设置）：
+
+- 拦截：link-local 段 — `169.254.0.0/16`（含云元数据端点 `169.254.169.254`）与 `fe80::/10`。IPv4-mapped IPv6 形式（如 `::ffff:169.254.169.254`）按对应 IPv4 地址判定。
+- 放行：回环、RFC1918 私网段与公网地址 — 本地/局域网 relay 集群开箱即用。
+
+**严格策略**（`relay_block_private: true`）额外拦截回环（`127.0.0.0/8`、`::1`）、RFC1918（`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`）与 IPv6 ULA（`fc00::/7`）。适用于注册目标只允许公网主机的场景。
+
+```yaml
+server:
+  relay_registry_token: "your-registry-secret"
+  relay_block_private: true   # 拒绝回环/私网 relay 目标
+```
+
+校验分两层执行：
+
+1. **注册时** — `POST /api/relay/register` 对违反策略的 IP 字面量 host 返回 HTTP 400。主机名形式的 host 在此放行（未经 DNS 无法判定）。
+2. **拨号时** — 每个解析出的 IP 在连接前再次校验，因此主机名事后解析到被拦地址（DNS rebinding）仍会被拒绝。
+
+策略在每次请求/连接时活读，热重载（`/_reload` 或 SIGHUP）后立即生效。
 
 ### `relay_client` — 自动注册（下游）
 
@@ -486,7 +511,7 @@ log:
 
 **Header 合并优先级**：自动 Headers → `forward_headers` → `headers`（自定义最高优先）。
 
-**`{{.raw_body}}` 模板** — 将原始请求体以 JSON 原文注入。仅限 webhook 的 `body` 字段使用（command/script 不支持，防止 shell 注入）。
+**`{{.raw_body}}` 模板** — 将原始请求体逐字注入（JSON 或任意其他载荷）。webhook 的 `body` 字段与 command/script 模板均可使用；在 command `cmd` 与 script `path` 中该值会自动做 shell 转义（见下方安全说明），无法注入命令。
 
 > **注意**：`body` 字段必须是 YAML **字符串**。请用引号（`'...'`）包裹 JSON 或使用块标量（`|`）。模板变量如 `{{.raw_body}}` 必须包含 `{{ }}` 分隔符，单独写 `.raw_body` 会被当作普通文本。
 
@@ -562,7 +587,7 @@ actions:
 
 | 模板 | 来源 | 示例 |
 |------|------|------|
-| `{{.raw_body}}` | 原始请求体 | 完整 JSON body |
+| `{{.raw_body}}` | 原始请求体 | 完整请求体原文（不限 JSON） |
 | `{{.body.<path>}}` | JSON 请求体 | `{{.body.ref}}`、`{{.body.repository.owner.name}}` |
 | `{{.header.<name>}}` | HTTP 请求头 | `{{.header.X-GitHub-Event}}` |
 | `{{.query.<name>}}` | URL 查询参数 | `{{.query.token}}` |

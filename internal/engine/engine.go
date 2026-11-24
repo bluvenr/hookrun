@@ -94,6 +94,10 @@ type Engine struct {
 	// Relay target registry for dynamic discovery (nil when not enabled)
 	registry     *TargetRegistry
 	registryStop chan struct{}
+	// Live provider for the relay SSRF block-private policy (D-08); read on
+	// every dial so hot-reload takes effect without rewiring UpdateConfigs.
+	// nil means the default policy (block link-local/metadata only).
+	relayPolicyProvider func() bool
 	// Async execution control
 	asyncSem  chan struct{}    // concurrency semaphore for background tasks
 	asyncWG   sync.WaitGroup   // tracks in-flight background tasks
@@ -188,6 +192,13 @@ func (e *Engine) SetRegistry(reg *TargetRegistry) {
 // Registry returns the target registry (nil when not enabled).
 func (e *Engine) Registry() *TargetRegistry {
 	return e.registry
+}
+
+// SetRelayPolicyProvider wires a live reader for the relay SSRF block-private
+// policy (D-08). The dial-side Control hook consults it on every connection,
+// so config hot-reloads apply without touching the engine's rule configs.
+func (e *Engine) SetRelayPolicyProvider(fn func() bool) {
+	e.relayPolicyProvider = fn
 }
 
 // getRuleLogger returns (or creates) a rule-level logger for the given config.
@@ -330,8 +341,25 @@ func (e *Engine) processConfig(cfg *config.RuleConfig, req *RequestData) []Respo
 			return e.dispatchAsync(cfg, rule, taskKey, req, log)
 		}
 		log.Info("Rule '%s' matched, executing %d actions", taskKey, len(rule.Actions))
-		actionCount, _ := e.executeActions(taskKey, rule.Actions, req, log)
+		actionCount, failed := e.executeActions(taskKey, rule.Actions, req, log)
 		e.markDone(taskKey)
+
+		// Surface failures to the caller instead of swallowing them into a
+		// hardcoded 200 ok (D-03a) — mirrors the async path's failure record.
+		if failed != nil {
+			errMsg := ""
+			if failed.Error != nil {
+				errMsg = failed.Error.Error()
+			}
+			log.Error("Rule '%s' finished with a failed action (exit=%d): %s", taskKey, failed.ExitCode, errMsg)
+			return []Response{{
+				Code:    500,
+				Message: fmt.Sprintf("action failed (exit=%d): %s", failed.ExitCode, errMsg),
+				Config:  cfg.Name,
+				Rule:    rule.Name,
+				Actions: actionCount,
+			}}
+		}
 
 		return []Response{{
 			Code:    200,
@@ -825,14 +853,17 @@ func calcRetryInterval(attempt, baseInterval int) time.Duration {
 
 	// Apply ±25% jitter
 	// jitter range: [interval * 0.75, interval * 1.25]
+	// Scale to nanoseconds BEFORE converting: time.Duration(jitter) would
+	// truncate the float to whole nanoseconds first, collapsing sub-second
+	// backoffs to 0 or 1s (D-07).
 	jitter := float64(interval) * (0.75 + rand.Float64()*0.5)
-	return time.Duration(jitter) * time.Second
+	return time.Duration(jitter * float64(time.Second))
 }
 
 // resolveActionTemplates resolves template variables in a string and appends pass_args.
 // Template syntax:
 //
-//	{{.raw_body}}       - raw request body as-is (command/script only)
+//	{{.raw_body}}       - raw request body as-is (shell-escaped in command cmds/script paths)
 //	{{.body.<path>}}    - extract from JSON body (supports dot notation and array index)
 //	{{.header.<name>}}  - extract from request header
 //	{{.query.<name>}}   - extract from query parameter
@@ -1024,6 +1055,10 @@ func ParseRequest(r *http.Request) (*RequestData, error) {
 			return data, err
 		}
 		data.BodyBytes = rawBody
+		// Carry the raw body for HOOKRUN_RAW_BODY and {{.raw_body}} in every
+		// action type (D-02); command/script template values are shell-escaped
+		// by resolveActionTemplates (D-04), so this is injection-safe.
+		data.BodyRaw = string(rawBody)
 		// Parse body as JSON from raw bytes
 		var body map[string]interface{}
 		if err := json.Unmarshal(rawBody, &body); err == nil {

@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/bluvenr/hookrun/internal/config"
 	"github.com/bluvenr/hookrun/internal/executor"
 	"github.com/bluvenr/hookrun/internal/logger"
+	"github.com/bluvenr/hookrun/internal/netguard"
 	"github.com/bluvenr/hookrun/internal/version"
 )
 
@@ -214,8 +217,32 @@ func (e *Engine) sendToTarget(target config.RelayTarget, req *RequestData, relay
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	// Execute with timeout
-	client := &http.Client{Timeout: timeout}
+	// Execute with timeout. The dialer's Control hook re-checks every
+	// resolved IP against the SSRF policy (D-08): registration only covers
+	// IP-literal hosts, so a hostname resolving to a blocked address (DNS
+	// rebinding) must still be rejected here, before connect. The policy is
+	// read live so hot-reloads apply immediately.
+	blockPrivate := false
+	if e.relayPolicyProvider != nil {
+		blockPrivate = e.relayPolicyProvider()
+	}
+	dialer := &net.Dialer{
+		Timeout: timeout,
+		Control: func(network, address string, c syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			if err := netguard.CheckIP(net.ParseIP(host), blockPrivate); err != nil {
+				return fmt.Errorf("relay SSRF policy: %w", err)
+			}
+			return nil
+		},
+	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: &http.Transport{DialContext: dialer.DialContext},
+	}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		log.Warn("[%s/%s] Relay to %s failed: %v", configName, ruleName, target.URL, err)

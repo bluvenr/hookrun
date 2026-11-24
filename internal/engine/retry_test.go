@@ -161,6 +161,33 @@ func TestCalcRetryInterval_JitterRange(t *testing.T) {
 	}
 }
 
+// Regression for D-07: time.Duration(jitter) truncated the float to whole
+// nanoseconds BEFORE multiplying by time.Second, so with base=1 the first
+// backoff (jitter in [0.75, 1.25)) collapsed to 0 (~50% of the time) or 1s.
+// The first retry must always wait within the documented ±25% jitter band.
+func TestCalcRetryInterval_FirstBackoffBase1(t *testing.T) {
+	for i := 0; i < 500; i++ {
+		d := calcRetryInterval(1, 1)
+		if d <= 0 {
+			t.Fatalf("first backoff with base=1 must be > 0, got %v (sample %d)", d, i)
+		}
+		if d < 750*time.Millisecond || d > 1250*time.Millisecond {
+			t.Fatalf("first backoff with base=1 out of [750ms, 1250ms]: got %v (sample %d)", d, i)
+		}
+	}
+}
+
+// Same truncation at attempt=2: jitter in [1.5, 2.5) collapsed to 1s or 2s,
+// breaking the lower bound of the exponential backoff contract.
+func TestCalcRetryInterval_SecondBackoffBase1(t *testing.T) {
+	for i := 0; i < 500; i++ {
+		d := calcRetryInterval(2, 1)
+		if d < 1500*time.Millisecond || d > 2500*time.Millisecond {
+			t.Fatalf("second backoff with base=1 out of [1500ms, 2500ms]: got %v (sample %d)", d, i)
+		}
+	}
+}
+
 // --- executeActions with retry ---
 
 func TestExecuteActions_RetrySuccess(t *testing.T) {

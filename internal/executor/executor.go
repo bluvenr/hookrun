@@ -64,6 +64,14 @@ func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool, env
 	c.Env = append(os.Environ(), "HOOKRUN=1")
 	c.Env = append(c.Env, envVars...)
 
+	// Kill the whole process tree on timeout, not just the direct shell
+	// child: a forked grandchild (e.g. "sleep 10" under dash) otherwise
+	// survives as an orphan holding the stdout pipe's write end, stalling
+	// cmd.Wait far past the timeout (D-03b). WaitDelay is the backstop that
+	// force-closes the pipes if anything still holds them open.
+	configureProcessKill(c)
+	c.WaitDelay = 2 * time.Second
+
 	var stdout, stderr bytes.Buffer
 	c.Stdout = &stdout
 	c.Stderr = &stderr
@@ -72,17 +80,26 @@ func runShell(cmd string, scriptArgs []string, timeoutSec int, isolate bool, env
 	err := c.Run()
 	duration := time.Since(start)
 
+	if ctx.Err() == context.DeadlineExceeded {
+		// If the shell exited before the deadline (it backgrounded the real
+		// work), Go's watchCtx never calls Cancel, so sweep the tree/group
+		// explicitly — otherwise the orphaned work keeps running (D-03b).
+		killProcessTree(c)
+	}
+
 	result := &ActionResult{
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		Duration: duration,
 	}
 
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			result.Error = fmt.Errorf("command timed out after %d seconds", timeoutSec)
-			result.ExitCode = -1
-		} else if exitErr, ok := err.(*exec.ExitError); ok {
+	if ctx.Err() == context.DeadlineExceeded {
+		// The deadline fired even if the shell itself exited 0 (e.g. it
+		// backgrounded the real work and left an orphan holding the pipes).
+		result.Error = fmt.Errorf("command timed out after %d seconds", timeoutSec)
+		result.ExitCode = -1
+	} else if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 			result.Error = fmt.Errorf("command exited with code %d", result.ExitCode)
 		} else {
