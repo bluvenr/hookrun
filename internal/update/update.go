@@ -20,10 +20,15 @@ import (
 )
 
 const (
-	repo         = "bluvenr/hookrun"
+	repo      = "bluvenr/hookrun"
+	userAgent = "hookrun"
+)
+
+// Endpoint bases are variables so tests can point them at a fake release
+// server; production code never reassigns them.
+var (
 	latestAPI    = "https://api.github.com/repos/" + repo + "/releases/latest"
 	downloadBase = "https://github.com/" + repo + "/releases/download"
-	userAgent    = "hookrun"
 )
 
 // Asset represents a single downloadable release asset.
@@ -100,6 +105,18 @@ func InContainerOrCI() bool {
 // An empty targetVersion resolves to the latest release. It returns the
 // version that was installed.
 func SelfUpdate(targetVersion string) (string, error) {
+	currentExe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("locate current executable: %w", err)
+	}
+	if resolved, err := filepath.EvalSymlinks(currentExe); err == nil {
+		currentExe = resolved
+	}
+	return selfUpdate(targetVersion, currentExe)
+}
+
+// selfUpdate is the testable core of SelfUpdate with an explicit target path.
+func selfUpdate(targetVersion, currentExe string) (string, error) {
 	var info *ReleaseInfo
 	if targetVersion == "" {
 		var err error
@@ -140,13 +157,6 @@ func SelfUpdate(targetVersion string) (string, error) {
 		return "", fmt.Errorf("extract archive: %w", err)
 	}
 
-	currentExe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("locate current executable: %w", err)
-	}
-	if resolved, err := filepath.EvalSymlinks(currentExe); err == nil {
-		currentExe = resolved
-	}
 	if err := replaceBinary(currentExe, newBinPath); err != nil {
 		return "", err
 	}

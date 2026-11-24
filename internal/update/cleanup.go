@@ -15,6 +15,11 @@ func CleanupOldBinary() {
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
+	cleanupOldBinaryAt(exe)
+}
+
+// cleanupOldBinaryAt is the testable core with an explicit executable path.
+func cleanupOldBinaryAt(exe string) {
 	_ = os.Remove(exe + ".old")
 	_ = os.Remove(filepath.Join(filepath.Dir(exe), filepath.Base(exe)+".new"))
 }
