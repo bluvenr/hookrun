@@ -86,7 +86,7 @@ server:
 | `DELETE` | `/api/relay/register` | Bearer Token | 注销目标 * |
 | `GET` | `/api/relay/targets` | Bearer Token | 查看所有已注册目标 * |
 
-\* 仅当 `relay_registry_token` 非空时可用。
+\* 仅当 `relay_registry_token` 非空时可用。热重载清空 token 会立即禁用注册池（请求返回 401）。
 
 **注册请求体**（`POST /api/relay/register`）：
 ```json

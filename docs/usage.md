@@ -121,6 +121,7 @@ hookrun start -c /etc/hookrun/config.yaml
 ```
 
 - Daemon mode creates a PID file in `~/.hookrun/`
+- Daemon mode waits until the server answers `/health` (up to 10 seconds) before reporting success. If the child process exits early (e.g. the port is already in use), `start` reports the failure instead of a false success
 - Foreground mode logs directly to the terminal
 
 ---
@@ -178,8 +179,9 @@ hookrun reload
 ```
 
 - Reloads all YAML files (global + rule configs) without restarting
-- **Linux/macOS**: Uses the HTTP reload API (`POST /_reload`)
+- **Linux/macOS**: Uses the HTTP reload API (`POST /_reload`). The port is resolved from the running instance's `status.json` first, falling back to the config file — so a config edited since startup still reaches the live listener
 - **Windows**: Uses signal file IPC
+- The HTTP request has a 5-second timeout. Any non-200 response is reported as an error with the status code and body (e.g. `reload failed: HTTP 500: ...` for an invalid config); SIGHUP is used as a fallback only on network-level failures
 
 After reload, new rules take effect immediately for subsequent requests.
 
@@ -423,6 +425,8 @@ curl -H "Authorization: Bearer your-registry-secret" \
      http://main-hookrun:9000/api/relay/targets
 ```
 
+> **Note**: clearing `relay_registry_token` via hot reload disables the registry immediately — all registry requests are rejected with 401 until a non-empty token is restored.
+
 ---
 
 ## 3. Response Format
@@ -490,6 +494,22 @@ When `policy: "cooldown"` and the cooldown window is active:
   "message": "Task 'github-auto-deploy/push-to-main' is in cooldown, retry in 120 seconds"
 }
 ```
+
+### Action Failed (500)
+
+In synchronous mode, if any action fails (non-zero exit code, timeout, or dispatch error), the failure is surfaced to the caller instead of a 200:
+
+```json
+{
+  "code": 500,
+  "message": "action failed (exit=1): exit status 1",
+  "config": "github-auto-deploy",
+  "rule": "push-to-main",
+  "actions": 1
+}
+```
+
+`actions` counts the actions that completed successfully. With `async: true` the request still returns 202 immediately; check the execution records (`GET /api/executions`) or logs for background failures.
 
 ### Accepted Asynchronously (202)
 

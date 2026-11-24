@@ -121,6 +121,7 @@ hookrun start -c /etc/hookrun/config.yaml
 ```
 
 - 守护模式会在 `~/.hookrun/` 创建 PID 文件
+- 守护模式会等待服务 `/health` 就绪（最多 10 秒）后才报告成功；若子进程提前退出（如端口已被占用），`start` 会报错而非假报成功
 - 前台模式直接将日志输出到终端
 
 ---
@@ -178,8 +179,9 @@ hookrun reload
 ```
 
 - 重新加载所有 YAML 文件（全局 + 规则配置），无需重启
-- **Linux/macOS**：使用 HTTP 重载 API (`POST /_reload`)
+- **Linux/macOS**：使用 HTTP 重载 API (`POST /_reload`)。端口优先从运行中实例的 `status.json` 解析，回退到配置文件——启动后改过配置也能命中真实监听端口
 - **Windows**：使用信号文件 IPC
+- HTTP 请求带 5 秒超时；非 200 响应会报错并回显状态码与响应体（如配置非法时 `reload failed: HTTP 500: ...`）；仅网络层失败时才回退到 SIGHUP
 
 重载后，新规则对后续请求立即生效。
 
@@ -423,6 +425,8 @@ curl -H "Authorization: Bearer your-registry-secret" \
      http://main-hookrun:9000/api/relay/targets
 ```
 
+> **注意**：热重载清空 `relay_registry_token` 会立即禁用注册池——所有注册请求均被 401 拒绝，直到恢复非空 token。
+
 ---
 
 ## 3. 响应格式
@@ -490,6 +494,22 @@ curl -H "Authorization: Bearer your-registry-secret" \
   "message": "Task 'github-auto-deploy/push-to-main' is in cooldown, retry in 120 seconds"
 }
 ```
+
+### 动作失败（500）
+
+同步模式下，若任一动作失败（非零退出码、超时或分发错误），失败会透出给调用方而非返回 200：
+
+```json
+{
+  "code": 500,
+  "message": "action failed (exit=1): exit status 1",
+  "config": "github-auto-deploy",
+  "rule": "push-to-main",
+  "actions": 1
+}
+```
+
+`actions` 为成功完成的动作数。若配置了 `async: true`，请求仍立即返回 202；后台失败请查执行记录（`GET /api/executions`）或日志。
 
 ### 异步接受（202）
 

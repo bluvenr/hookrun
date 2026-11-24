@@ -86,7 +86,7 @@ server:
 | `DELETE` | `/api/relay/register` | Bearer Token | Unregister a target * |
 | `GET` | `/api/relay/targets` | Bearer Token | List all registered targets * |
 
-\* Only available when `relay_registry_token` is set.
+\* Only available when `relay_registry_token` is set. Clearing the token via hot reload disables the registry immediately (requests get 401).
 
 **Registration body** (`POST /api/relay/register`):
 ```json
